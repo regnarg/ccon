@@ -1,5 +1,5 @@
 
-all: ccon.exe.so gtfs2graph.exe.so LINQtoCSV.dll.so
+all: ccon.exe.so gtfs2graph.exe.so LINQtoCSV.dll.so YamlSerializer.dll.so
 
 .PHONY: install-deps
 install-deps:
@@ -9,11 +9,11 @@ install-deps:
 	ln -f $$(ls -d 3rd/LINQtoCSV/lib/[Nn]et[34]* | tail -1)/*.dll .
 	ln -f $$(ls -d 3rd/YamlSerializer/lib/[Nn]et[34]* | tail -1)/*.dll .
 
-gtfs2graph.exe: gtfs2graph.cs gtfs.cs
+gtfs2graph.exe: gtfs2graph.cs gtfs.cs graph.cs utils.cs
 	mcs -debug+ -r:LINQtoCSV -r:YamlSerializer -O:all -out:$@ $^
 
 ccon.exe: cli.cs
-	mcs -r:YamlSerializer -O:all -out:$@ $^
+	mcs -r:YamlSerializer -O:all,-shared -out:$@ $^
 
 %.so: %
-	mono --debug --aot $<
+	mono --debug --aot -O=all,-shared $<
