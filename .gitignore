@@ -1,0 +1,9 @@
+*.zip
+*.ZIP
+*.so
+*.exe
+*.mdb
+*.dll
+/VS_2016_06-12
+/jrdata_transit
+/3rd
