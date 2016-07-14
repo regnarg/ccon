@@ -135,6 +135,9 @@ namespace CCon {
                 t.Route = this.Routes[t.RouteId];
                 t.Calendar = this.Calendars[t.CalendarId];
             }
+            foreach (var t in stopTimes) {
+                t.Stop = this.Stops[t.StopId];
+            }
             foreach (var g in stopTimes.GroupBy(t => t.TripId)) {
                 this.Trips[g.Key].StopTimes = g.OrderBy(t => t.Sequence).ToArray();
             }

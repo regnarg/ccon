@@ -8,6 +8,7 @@ namespace CCon {
             foreach(T itm in seq) {
                 if (first) first = false;
                 else yield return new Tuple<T,T>(last,itm);
+                last = itm;
             }
         }
         // From http://stackoverflow.com/a/1514470
