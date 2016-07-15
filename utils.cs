@@ -1,5 +1,10 @@
 using System;
 using System.Collections.Generic;
+
+using IronPython.Hosting;
+using Microsoft.Scripting;
+using Microsoft.Scripting.Hosting;
+
 namespace CCon {
     static class Utils {
         public static IEnumerable< Tuple<T,T> > Pairs<T>(this IEnumerable<T> seq) {
@@ -28,6 +33,20 @@ namespace CCon {
                 dict.Add(key, val);
             }
             return val;
+        }
+        
+        public static void PyREPL(params object[] vars) {
+            var engine = Python.CreateEngine();
+            var scope = engine.CreateScope();
+            foreach (var pair in vars.Pairs()) {
+                string key = (string) pair.Item1;
+                
+                scope.SetVariable((string) pair.Item1, pair.Item2);
+            }
+			// sys.path.insert(0,'/data/mff/4V/cs-zap/ipython/Lib');import readline; 
+            var code = "try: import sys; sys.ps1='\\n\\n'+sys.ps1; sys.path.append('/usr/lib/ipy/Lib');import code; code.interact(None,None,locals())\nexcept: __import__('traceback').print_exc()";
+            var source = engine.CreateScriptSourceFromString(code, SourceCodeKind.Statements);
+            source.Execute(scope); 
         }
     }
 }
