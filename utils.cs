@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 
 using IronPython.Hosting;
 using Microsoft.Scripting;
@@ -116,6 +117,36 @@ namespace CCon {
             return string.Join(":", comps);
         }
 
+
+        public static void WriteUInt24(this BinaryWriter wr, uint num) {
+            wr.Write((byte) (num & 0xff));
+            wr.Write((byte) ((num >> 8) & 0xff));
+            wr.Write((byte) ((num >> 16) & 0xff));
+        }
+        public static uint ReadUInt24(this BinaryReader rd) {
+            uint r = 0;
+            for (int i = 0; i < 3; i++) {
+                r <<= 8;
+                r |= rd.ReadByte();
+            }
+            return r;
+        }
+
+
+        public class Profiler  : IDisposable {
+            System.Diagnostics.Stopwatch stopwatch = new System.Diagnostics.Stopwatch();
+            string desc;
+            public Profiler(string desc) {
+                this.stopwatch.Start();
+                this.desc = desc;
+            }
+
+            public void Dispose() {
+                this.stopwatch.Stop();
+                Console.Error.WriteLine(string.Format("[{0}.{1,03}] {2}", this.stopwatch.ElapsedMilliseconds/1000,
+                            this.stopwatch.ElapsedMilliseconds%1000, this.desc));
+            }
+        }
     }
 
 
