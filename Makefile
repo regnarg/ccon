@@ -1,6 +1,6 @@
 
 #all: ccon.exe.so gtfs2graph.exe.so LINQtoCSV.dll.so YamlSerializer.dll.so
-all: ccon.exe ccon-build.exe
+all: ccon.exe ccon-build.exe model_console.exe
 
 PY_REFS=-lib:/usr/lib/ipy -r:Microsoft.Scripting -r:IronPython
 
@@ -19,8 +19,11 @@ install-deps:
 ccon-build.exe: builder.cs gtfs.cs model.cs utils.cs
 	mcs -debug+ -r:LINQtoCSV -r:MsgPack $(PY_REFS) -O:all -out:$@ $^
 
-ccon.exe: cli.cs
-	mcs -O:all,-shared $(PY_REFS) -out:$@ $^
+ccon.exe: cli.cs model.cs utils.cs
+	mcs -O:all,-shared -r:MsgPack $(PY_REFS) -out:$@ $^
+
+model_console.exe: model_console.cs model.cs utils.cs
+	mcs -O:all,-shared -r:MsgPack $(PY_REFS) -out:$@ $^
 
 %.so: %
 	mono --debug --aot -O=all,-shared $<

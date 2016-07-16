@@ -52,7 +52,7 @@ namespace CCon {
                 scope.SetVariable((string) pair.Item1, pair.Item2);
             }
 			// sys.path.insert(0,'/data/mff/4V/cs-zap/ipython/Lib');import readline; 
-            var code = "try: import sys; sys.ps1='\\n\\n'+sys.ps1; sys.path.append('/usr/lib/ipy/Lib');import code; code.interact(None,None,locals())\nexcept: __import__('traceback').print_exc()";
+            var code = "try: import sys; sys.ps1='\\n\\n'+sys.ps1+'\\n'; sys.path.append('/usr/lib/ipy/Lib');import code; code.interact(None,None,locals())\nexcept: __import__('traceback').print_exc()";
             var source = engine.CreateScriptSourceFromString(code, SourceCodeKind.Statements);
             source.Execute(scope); 
         }

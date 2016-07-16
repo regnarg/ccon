@@ -63,10 +63,15 @@ namespace CCon {
                 using (Stream stream = new FileStream(fn + ".tmp", FileMode.Create, FileAccess.Write, FileShare.None)) {
                     ser.Pack(stream, this);
                     //formatter.Serialize(stream, this.G);
-                    stream.Flush();
                 }
                 File.Replace(fn+".tmp", fn, fn+".bak");
                 File.Delete(fn+".bak");
+        }
+        public static Model Load(string fn) {
+                var ser = MessagePackSerializer.Get<Model>();
+                using (Stream stream = new FileStream(fn, FileMode.Open, FileAccess.Read, FileShare.None)) {
+                    return ser.Unpack(stream);
+                }
         }
     }
 }
