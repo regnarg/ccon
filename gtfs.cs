@@ -3,37 +3,12 @@ using LINQtoCSV;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using static CCon.Utils;
 
 namespace CCon {
     public class GTFS {
         public class Invalid : Exception {
             public Invalid(string msg) : base("Invalid GTFS: " + msg) {}
-        }
-
-        /**
-         *  Convert a GTFS time to seconds-since-midnight.
-         *
-         *  GTFS time is an ordinary HH:MM:SS string with the unusual
-         *  property that it can go over midnight (e.g. 24:30).
-         *  Standard TimeSpan class rather stupidly parses this as
-         *  24 days and 30 minutes!
-         */
-        static int ParseTime(string s) {
-            int r = 0;
-            string[] comps = s.Split(':');
-            foreach (string comp in comps) {
-                r = r*60 + int.Parse(comp);
-            }
-            return r;
-        }
-
-        static string FormatTime(int t) {
-            string[] comps = new string[3];
-            for (int i = 2; i >= 0; i--) {
-                comps[i] = (t % 60).ToString();
-                t /= 60;
-            }
-            return string.Join(":", comps);
         }
 
         public class Stop {
@@ -67,20 +42,20 @@ namespace CCon {
                 set { ArrTime = ParseTime(value); }
                 get { return FormatTime(ArrTime); }
             }
-            public int ArrTime;
+            public ushort ArrTime;
 
             [CsvColumn(Name="departure_time")]
             public string DepTimeStr {
                 set { DepTime = ParseTime(value); }
                 get { return FormatTime(DepTime); }
             }
-            public int DepTime;
+            public ushort DepTime;
 
             [CsvColumn(Name="stop_id")]
             public string StopId;
             public Stop Stop;
             [CsvColumn(Name="sequence")]
-            public uint Sequence;
+            public int Sequence;
         }
         public class Trip {
             [CsvColumn(Name="trip_id")]

@@ -1,6 +1,6 @@
 
 #all: ccon.exe.so gtfs2graph.exe.so LINQtoCSV.dll.so YamlSerializer.dll.so
-all: ccon.exe gtfs2graph.exe
+all: ccon.exe ccon-build.exe
 
 PY_REFS=-lib:/usr/lib/ipy -r:Microsoft.Scripting -r:IronPython
 
@@ -15,8 +15,9 @@ install-deps:
 	ln -f 3rd/TreeLibInterface/lib/*.dll .
 	ln -f 3rd/TreeLib/lib/*.dll .
 
-gtfs2graph.exe: gtfs2graph.cs gtfs.cs graph.cs utils.cs
-	mcs -debug+ -r:LINQtoCSV -r:TreeLibInterface -r:TreeLib -r:QuickGraph -r:QuickGraph.Serialization $(PY_REFS) -O:all -out:$@ $^
+# -r:TreeLibInterface -r:TreeLib 
+ccon-build.exe: builder.cs gtfs.cs model.cs utils.cs
+	mcs -debug+ -r:LINQtoCSV -r:MsgPack $(PY_REFS) -O:all -out:$@ $^
 
 ccon.exe: cli.cs
 	mcs -O:all,-shared $(PY_REFS) -out:$@ $^
