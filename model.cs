@@ -52,12 +52,14 @@ namespace CCon {
         public class CompactGraph {
             public int NVertices;
             public int NEdges;
+            [MessagePackIgnore]
             public Vertex[] Vertices;
             /**
              * Packed successors of all vertices.
              *
              * The successors of vertex $u$ are stored in Succ[Verices[u].SuccStart]..Succ[Verices[u+1].SuccStart]
              */
+            [MessagePackIgnore]
             public int[] Succ;
 
             public CompactGraph() {}
@@ -72,28 +74,50 @@ namespace CCon {
                 this.Succ = new int[E];
             }
             
-            public void Write(BinaryWriter wr) {
-                wr.Write(this.NVertices);
-                wr.Write(this.NEdges);
-                foreach (var vert in this.Vertices) vert.Write(wr);
-                foreach (int succ in this.Succ) wr.WriteUInt24((uint) succ);
+            internal void WriteData(string fn) {
+                Console.Error.WriteLine(string.Format("Vertex size: {0}", Marshal.SizeOf(typeof(Vertex))));
+                int verticesSize = this.Vertices.Length * Marshal.SizeOf(typeof(Vertex));
+                int edgesSize = this.Succ.Length * Marshal.SizeOf(typeof(int));
+                int size = verticesSize + edgesSize;
+                File.Delete(fn);
+                var mmf = MemoryMappedFile.CreateFromFile(fn, FileMode.Create, "x", size, MemoryMappedFileAccess.ReadWrite);
+                var acc = mmf.CreateViewAccessor();
+                using (new Profiler("Write Graph")) {
+                    int pos = 0;
+                    acc.WriteArray(pos, this.Vertices, 0, this.Vertices.Length);
+                    pos += verticesSize;
+                    acc.WriteArray(pos, this.Succ, 0, this.Succ.Length);
+                    acc.Flush();
+                }
+                acc.Dispose();
+                mmf.Dispose();
             }
 
-            public static CompactGraph Load(BinaryReader rd) {
-                int V = rd.ReadInt32();
-                int E = rd.ReadInt32();
-                var G = new CompactGraph(V,E);
-                for (int u = 0; u < V; u++) {
-                    G.Vertices[u].Load(rd);
+            internal void  LoadData(string fn) {
+                Console.Error.WriteLine(string.Format("Vertex size: {0}", Marshal.SizeOf(typeof(Vertex))));
+                int V=this.NVertices, E=this.NEdges;
+                this.Vertices = new Vertex[V+1];
+                this.Vertices[V].SuccStart = E;
+                this.Succ = new int[E];
+                int verticesSize = this.Vertices.Length * Marshal.SizeOf(typeof(Vertex));
+                int edgesSize = this.Succ.Length * Marshal.SizeOf(typeof(int));
+                var mmf = MemoryMappedFile.CreateFromFile(fn, FileMode.Open, "x", 0, MemoryMappedFileAccess.Read);
+                var acc = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+                using (new Profiler("Read Graph")) {
+                    int pos = 0;
+                    acc.ReadArray(pos, this.Vertices, 0, this.Vertices.Length);
+                    pos += verticesSize;
+                    acc.ReadArray(pos, this.Succ, 0, this.Succ.Length);
+                    acc.Flush();
                 }
-                return G;
+                acc.Dispose();
+                mmf.Dispose();
             }
         }
 
         public Stop[] Stops;
         public Route[] Routes;
         public Calendar[] Calendars;
-        [MessagePackIgnore]
         public CompactGraph Graph;
 
         public void Write(string fn) {
@@ -102,30 +126,14 @@ namespace CCon {
                 using (var stream = new FileStream(fn + ".tmp", FileMode.Create, FileAccess.Write, FileShare.None)) {
                     using (new Profiler("Write MsgPack"))
                         ser.Pack(stream, this);
-                    Console.Error.WriteLine(string.Format("Vertex size: {0}", Marshal.SizeOf(typeof(Vertex))));
-                    int verticesSize = this.Graph.Vertices.Length * Marshal.SizeOf(typeof(Vertex));
-                    int edgesSize = this.Graph.Succ.Length * Marshal.SizeOf(typeof(int));
-                    int size = verticesSize + edgesSize;
-                    File.Delete(fn + ".mmap.tmp");
-                    var mmf = MemoryMappedFile.CreateFromFile(fn + ".mmap.tmp", FileMode.Create, "x", size, MemoryMappedFileAccess.ReadWrite);
-                    var acc = mmf.CreateViewAccessor();
-                    using (new Profiler("Write Graph")) {
-                        int pos = 0;
-                        acc.WriteArray(pos, this.Graph.Vertices, 0, this.Graph.Vertices.Length);
-                        pos += verticesSize;
-                        acc.WriteArray(pos, this.Graph.Succ, 0, this.Graph.Succ.Length);
-                        acc.Flush();
-                    }
-                    acc.Dispose();
-                    mmf.Dispose();
-                    File.Delete(fn+".mmap");
-                    File.Move(fn+".mmap.tmp", fn+".mmap");
-                    //formatter.Serialize(stream, this.G);
                 }
+                this.Graph.WriteData(fn+".mmap.tmp");
 
-                // Not atomic. Win32 filesystem semantics (imported into .NET even on Mono) suck.
+                // An "almost-atomic" replace of the two files. Very unlikely to fail in the middle of this.
                 File.Delete(fn);
+                File.Delete(fn+".mmap");
                 File.Move(fn+".tmp", fn);
+                File.Move(fn+".mmap.tmp", fn+".mmap");
         }
         public static Model Load(string fn) {
                 var ser = MessagePackSerializer.Get<Model>();
@@ -134,7 +142,7 @@ namespace CCon {
                     using (new Profiler("Load MsgPack"))
                         model = ser.Unpack(stream);
                     using (new Profiler("Load graph"))
-                        model.Graph = CompactGraph.Load(new BinaryReader(stream));
+                        model.Graph.LoadData(fn+".mmap");
                 }
                 return model;
         }
