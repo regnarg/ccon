@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.MemoryMappedFiles;
+using System.Runtime.InteropServices;
 using MsgPack.Serialization;
 using static CCon.Utils;
 
@@ -22,6 +24,7 @@ namespace CCon {
             public short[] includes;
             public short[] excludes;
         }
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
         public struct Vertex {
             public ushort Stop;
             public ushort Time; ///< Compact time (seconds/5 since midnight)
@@ -96,11 +99,27 @@ namespace CCon {
         public void Write(string fn) {
                 //var formatter = new BinaryFormatter();
                 var ser = MessagePackSerializer.Get<Model>();
-                using (Stream stream = new FileStream(fn + ".tmp", FileMode.Create, FileAccess.Write, FileShare.None)) {
+                using (var stream = new FileStream(fn + ".tmp", FileMode.Create, FileAccess.Write, FileShare.None)) {
                     using (new Profiler("Write MsgPack"))
                         ser.Pack(stream, this);
-                    using (new Profiler("Write Graph"))
-                        this.Graph.Write(new BinaryWriter(stream));
+                    Console.Error.WriteLine(string.Format("Vertex size: {0}", Marshal.SizeOf(typeof(Vertex))));
+                    int verticesSize = this.Graph.Vertices.Length * Marshal.SizeOf(typeof(Vertex));
+                    int edgesSize = this.Graph.Succ.Length * Marshal.SizeOf(typeof(int));
+                    int size = verticesSize + edgesSize;
+                    File.Delete(fn + ".mmap.tmp");
+                    var mmf = MemoryMappedFile.CreateFromFile(fn + ".mmap.tmp", FileMode.Create, "x", size, MemoryMappedFileAccess.ReadWrite);
+                    var acc = mmf.CreateViewAccessor();
+                    using (new Profiler("Write Graph")) {
+                        int pos = 0;
+                        acc.WriteArray(pos, this.Graph.Vertices, 0, this.Graph.Vertices.Length);
+                        pos += verticesSize;
+                        acc.WriteArray(pos, this.Graph.Succ, 0, this.Graph.Succ.Length);
+                        acc.Flush();
+                    }
+                    acc.Dispose();
+                    mmf.Dispose();
+                    File.Delete(fn+".mmap");
+                    File.Move(fn+".mmap.tmp", fn+".mmap");
                     //formatter.Serialize(stream, this.G);
                 }
 
