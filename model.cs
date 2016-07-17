@@ -15,21 +15,23 @@ namespace CCon {
         }
         public struct Route {
             public string ShortName;
-            public ushort Calendar;
         }
-        public struct Calendar {
-            public DateTime start;
-            public DateTime end;
+        public struct CalRoute {
+            public string RouteShortName; ///< The line number of the route (e.g. "12", "C")
+            public DateTime start; ///< First day vehicles with this calendar operate (midnight)
+            public DateTime end; ///< The first day _after_ vehicles with this calendar stop operating (midnight)
             public bool[] weekdays; ///< Weekday when this service operates (characteristic vector, 0=Monday)
-            // Exceptions (must be sorted), as relative number of days since `start` (start = 0).
-            public short[] includes;
+            /// List of days when vehicles with this calendar exceptionally do not operate,
+            /// even though they are in the [start, end) range.
             public short[] excludes;
+            public short[] includes; ///< List of 
         }
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         public struct Vertex {
             public ushort Stop;
             public ushort Time; ///< Compact time (seconds/5 since midnight)
-            public ushort Route; ///< Route id or ushort.MaxValue if this represents standing on a stop.
+            public ushort CalRoute; ///< Id of a CalRoute structure that holds combined calendar
+                                    ///  and route info (to save one ushort per vertex).
             public int SuccStart;
         }
 
@@ -110,8 +112,7 @@ namespace CCon {
         }
 
         public Stop[] Stops;
-        public Route[] Routes;
-        public Calendar[] Calendars;
+        public CalRoute[] CalRoutes;
         public CompactGraph Graph;
 
         public void Write(string fn) {

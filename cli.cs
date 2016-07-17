@@ -94,8 +94,22 @@ namespace CCon {
         }
 
         void Run(string[] args) {
-            using (new Profiler("Find stop")) {
-                Console.Error.WriteLine(string.Join(",",FindStop(args[1])));
+            ushort[] stops = FindStop(args[1]);
+            foreach (var stop in stops) {
+                int vert = this.model.Stops[stop].FirstVertex;
+                if (vert == -1) continue;
+                while (true) {
+                    int next = -1;
+                    foreach (var succ in this.model.Graph.GetSuccessors(vert)) {
+                        var calRouteId = this.model.Graph.Vertices[succ].CalRoute;
+                        if (calRouteId == ushort.MaxValue) next = succ;
+                        else {
+                            Debug(FormatTime(this.model.Graph.Vertices[vert].Time), this.model.CalRoutes[calRouteId].RouteShortName);
+                        }
+                    }
+                    if (next == -1) break;
+                    else vert = next;
+                }
             }
             visited = new bool[model.Graph.NVertices];
             using (new Profiler("DFS")) {

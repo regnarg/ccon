@@ -6,6 +6,7 @@ using static CCon.Utils;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.IO;
 using VertexKey = System.Tuple<CCon.GTFS.Stop, ushort, CCon.GTFS.Trip>;
+using CalRouteKey = System.Tuple<CCon.GTFS.Calendar, CCon.GTFS.Route>;
 
 namespace CCon {
     class ModelBuilder {
@@ -15,18 +16,20 @@ namespace CCon {
         /// For each stop the set of all event (departure/arrival) times.
         Dictionary< Stop, SortedSet<ushort> > stopEventTimes = new Dictionary< Stop, SortedSet<ushort> >();
 
-        CompactTableBuilder<Stop,       Model.Stop>      stopBuilder;
-        CompactTableBuilder<Route,      Model.Route>     routeBuilder;
-        CompactTableBuilder<Calendar,   Model.Calendar>  calendarBuilder;
-        CompactTableBuilder<VertexKey,  Model.Vertex>    vertexBuilder;
+        CompactTableBuilder<Stop,        Model.Stop    > stopBuilder;
+        CompactTableBuilder<CalRouteKey, Model.CalRoute> calRouteBuilder;
+        CompactTableBuilder<VertexKey,   Model.Vertex  > vertexBuilder;
         List< List<int> > succBuilder = new List< List<int> >();
 
         public ModelBuilder(GTFS gtfs) {
             this.gtfs = gtfs;
-            this.stopBuilder     = new CompactTableBuilder<Stop,      Model.Stop    >(this.buildStop, gtfs.Stops.Values);
-            this.routeBuilder    = new CompactTableBuilder<Route,     Model.Route   >(this.buildRoute, gtfs.Routes.Values);
-            this.calendarBuilder = new CompactTableBuilder<Calendar,  Model.Calendar>(this.buildCalendar, gtfs.Calendars.Values);
-            this.vertexBuilder   = new CompactTableBuilder<VertexKey, Model.Vertex  >(this.buildVertex);
+            this.stopBuilder     = new CompactTableBuilder<Stop,        Model.Stop    >(this.buildStop);
+            this.calRouteBuilder = new CompactTableBuilder<CalRouteKey, Model.CalRoute>(this.buildCalRoute);
+            this.vertexBuilder   = new CompactTableBuilder<VertexKey,   Model.Vertex  >(this.buildVertex);
+            this.stopBuilder.Add(gtfs.Stops.Values);
+            foreach (var trip in gtfs.Trips.Values) {
+                this.calRouteBuilder.Add(new CalRouteKey(trip.Calendar, trip.Route));
+            }
         }
 
         void AddEdge(int uId, int vId) {
@@ -39,7 +42,8 @@ namespace CCon {
             return new Model.Vertex {
                 Stop = (key.Item1 == null ? ushort.MaxValue : (ushort)this.stopBuilder.GetId(key.Item1)),
                 Time = (ushort) key.Item2,
-                Route = (key.Item3 == null ? ushort.MaxValue : (ushort)this.routeBuilder.GetId(key.Item3.Route)),
+                CalRoute = (key.Item3 == null ? ushort.MaxValue : (ushort)this.calRouteBuilder.GetId(
+                                                new CalRouteKey(key.Item3.Calendar, key.Item3.Route))),
             };
         }
         Model.Stop buildStop(Stop stop) {
@@ -53,13 +57,11 @@ namespace CCon {
             }
             return new Model.Stop { GTFSId = stop.Id, Name = stop.Name, FirstVertex = firstVertex };
         }
-        Model.Route buildRoute(Route route) {
-            return new Model.Route {
-                ShortName = route.ShortName
+        Model.CalRoute buildCalRoute(CalRouteKey key) {
+            return new Model.CalRoute {
+                RouteShortName = key.Item2.ShortName,
+                // TODO
             };
-        }
-        Model.Calendar buildCalendar(Calendar calendar) {
-            return new Model.Calendar(); // TODO
         }
 
         int getVert(Stop stop, ushort time, Trip trip) {
@@ -124,9 +126,9 @@ namespace CCon {
                 model.Graph = this.BuildCompactGraph();
             using (new Profiler("Build compact tables")) {
                 model.Stops = this.stopBuilder.BuildTable();
-                model.Routes = this.routeBuilder.BuildTable();
-                model.Calendars = this.calendarBuilder.BuildTable();
+                model.CalRoutes = this.calRouteBuilder.BuildTable();
             }
+            PyREPL("model", model, "gtfs", gtfs, "Utils", typeof(Utils), "builder", this);
             return model;
         }
 
