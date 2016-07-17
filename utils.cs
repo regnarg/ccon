@@ -50,39 +50,47 @@ namespace CCon {
         public static void PyREPL(params object[] vars) {
             var engine = Python.CreateEngine();
             var scope = engine.CreateScope();
-            foreach (var pair in vars.Pairs()) {
-                string key = (string) pair.Item1;
-                
-                scope.SetVariable((string) pair.Item1, pair.Item2);
+            for (int i = 0; i < vars.Length; i += 2) {
+                string key = (string) vars[i];
+                scope.SetVariable(key, vars[i+1]);
             }
             var code = "try: import sys; sys.ps1='\\n\\n'+sys.ps1+'\\n'; sys.path.append('/usr/lib/ipy/Lib');import code; code.interact(None,None,locals())\nexcept: __import__('traceback').print_exc()";
             var source = engine.CreateScriptSourceFromString(code, SourceCodeKind.Statements);
-            source.Execute(scope); 
+            source.Execute(scope);
         }
 
 
         public class CompactTableBuilder<TFull, TCompact> {
-            List<TCompact> table = new List<TCompact>();
             Dictionary<TFull, int> map = new Dictionary<TFull, int>();
             Func<TFull, TCompact> compactFunc;
 
-            public CompactTableBuilder(Func<TFull, TCompact> compactFunc) {
+            public CompactTableBuilder(Func<TFull, TCompact> compactFunc, IEnumerable<TFull> items = null) {
                 this.compactFunc = compactFunc;
+                if (items != null) this.Add(items);
             }
 
             public int Add(TFull obj) {
-                return this.map.SetDefault(obj, delegate {
-                            this.table.Add(this.compactFunc(obj));
-                            return this.table.Count - 1;
-                        });
+                return this.map.SetDefault(obj, this.map.Count);
             }
 
-            public TCompact[] GetTable() {
-                return this.table.ToArray();
+            public void Add(IEnumerable<TFull> objs) {
+                foreach (var obj in objs) this.Add(obj);
+            }
+
+            public int GetId(TFull obj) {
+                return this.map[obj];
+            }
+
+            public TCompact[] BuildTable() {
+                var table = new TCompact[this.map.Count];
+                foreach (var itm in this.map) {
+                    table[itm.Value] = this.compactFunc(itm.Key);
+                }
+                return table;
             }
 
             public int Count {
-                get { return this.table.Count; }
+                get { return this.map.Count; }
             }
         }
 

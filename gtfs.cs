@@ -76,34 +76,38 @@ namespace CCon {
         public Dictionary<string, Trip> Trips; 
 
         IEnumerable<T> LoadCSV<T>(string path) where T: class, new() {
-            Console.Error.WriteLine("Loading " + path);
-            var fileDesc = new CsvFileDescription {
-                IgnoreUnknownColumns = true,
-                // Needed to parse floats with decimal points, regardless of locale
-                FileCultureName = "",
-                MaximumNbrExceptions = 1,
-            };
-            var cc = new CsvContext();
-            try {
-                return cc.Read<T>(path, fileDesc).ToList();
-            } catch(AggregatedException ae) {
-                string msg;
-                // Process all exceptions generated while processing the file
-                List<Exception> innerExceptionsList =
-                    (List<Exception>)ae.Data["InnerExceptionsList"];
-                msg = "Error reading " + path + "\n" + String.Join("\n",
-                        innerExceptionsList.Select(exc => exc.Message));
-                throw new Invalid(msg);
+            using (new Profiler("Loading " + path)) {
+                var fileDesc = new CsvFileDescription {
+                    IgnoreUnknownColumns = true,
+                    // Needed to parse floats with decimal points, regardless of locale
+                    FileCultureName = "",
+                    MaximumNbrExceptions = 1,
+                };
+                var cc = new CsvContext();
+                try {
+                    return cc.Read<T>(path, fileDesc).ToList();
+                } catch(AggregatedException ae) {
+                    string msg;
+                    // Process all exceptions generated while processing the file
+                    List<Exception> innerExceptionsList =
+                        (List<Exception>)ae.Data["InnerExceptionsList"];
+                    msg = "Error reading " + path + "\n" + String.Join("\n",
+                            innerExceptionsList.Select(exc => exc.Message));
+                    throw new Invalid(msg);
+                }
             }
         }
 
         public void Load(string dir) {
             string b = dir + "/";
-            this.Stops = this.LoadCSV<Stop>(b+"stops.txt").ToDictionary(t => t.Id);
-            this.Routes = this.LoadCSV<Route>(b+"routes.txt").ToDictionary(t => t.Id);
-            this.Calendars = this.LoadCSV<Calendar>(b+"calendar.txt").ToDictionary(t => t.Id);
-            this.Trips = this.LoadCSV<Trip>(b+"trips.txt").ToDictionary(t => t.Id);
-            var stopTimes = this.LoadCSV<StopTime>(b+"stop_times.txt");
+            IEnumerable<StopTime> stopTimes;
+            using (new Profiler("Load all GTFS tables")) {
+                this.Stops = this.LoadCSV<Stop>(b+"stops.txt").ToDictionary(t => t.Id);
+                this.Routes = this.LoadCSV<Route>(b+"routes.txt").ToDictionary(t => t.Id);
+                this.Calendars = this.LoadCSV<Calendar>(b+"calendar.txt").ToDictionary(t => t.Id);
+                this.Trips = this.LoadCSV<Trip>(b+"trips.txt").ToDictionary(t => t.Id);
+                stopTimes = this.LoadCSV<StopTime>(b+"stop_times.txt");
+            }
             
             // Resolve foreign keys into direct object references for convenience.
             foreach (var t in this.Trips.Values) {

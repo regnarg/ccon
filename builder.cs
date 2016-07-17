@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using static CCon.GTFS;
 using static CCon.Utils;
 using System.Runtime.Serialization.Formatters.Binary;
@@ -22,9 +23,9 @@ namespace CCon {
 
         public ModelBuilder(GTFS gtfs) {
             this.gtfs = gtfs;
-            this.stopBuilder     = new CompactTableBuilder<Stop,      Model.Stop    >(this.buildStop);
-            this.routeBuilder    = new CompactTableBuilder<Route,     Model.Route   >(this.buildRoute);
-            this.calendarBuilder = new CompactTableBuilder<Calendar,  Model.Calendar>(this.buildCalendar);
+            this.stopBuilder     = new CompactTableBuilder<Stop,      Model.Stop    >(this.buildStop, gtfs.Stops.Values);
+            this.routeBuilder    = new CompactTableBuilder<Route,     Model.Route   >(this.buildRoute, gtfs.Routes.Values);
+            this.calendarBuilder = new CompactTableBuilder<Calendar,  Model.Calendar>(this.buildCalendar, gtfs.Calendars.Values);
             this.vertexBuilder   = new CompactTableBuilder<VertexKey, Model.Vertex  >(this.buildVertex);
         }
 
@@ -36,17 +37,26 @@ namespace CCon {
 
         Model.Vertex buildVertex(VertexKey key) {
             return new Model.Vertex {
-                Stop = (key.Item1 == null ? ushort.MaxValue : (ushort)this.stopBuilder.Add(key.Item1)),
+                Stop = (key.Item1 == null ? ushort.MaxValue : (ushort)this.stopBuilder.GetId(key.Item1)),
                 Time = (ushort) key.Item2,
-                Route = (key.Item3 == null ? ushort.MaxValue : (ushort)this.routeBuilder.Add(key.Item3.Route)),
+                Route = (key.Item3 == null ? ushort.MaxValue : (ushort)this.routeBuilder.GetId(key.Item3.Route)),
             };
         }
-
         Model.Stop buildStop(Stop stop) {
-            return new Model.Stop { Name = stop.Name };
+            int firstVertex = -1;
+            ushort firstTime = ushort.MaxValue;
+            try {
+                firstTime = this.stopEventTimes[stop].First();
+            } catch (KeyNotFoundException) { }
+            if (firstTime != ushort.MaxValue) {
+                firstVertex = this.vertexBuilder.GetId(new VertexKey(stop, firstTime, null));
+            }
+            return new Model.Stop { GTFSId = stop.Id, Name = stop.Name, FirstVertex = firstVertex };
         }
         Model.Route buildRoute(Route route) {
-            return new Model.Route { ShortName = route.ShortName };
+            return new Model.Route {
+                ShortName = route.ShortName
+            };
         }
         Model.Calendar buildCalendar(Calendar calendar) {
             return new Model.Calendar(); // TODO
@@ -57,7 +67,6 @@ namespace CCon {
         }
 
         void CreateGraph() {
-            Console.Error.WriteLine("begin");
             foreach (var trip in gtfs.Trips.Values) {
                 foreach (var stopTime in trip.StopTimes) {
                     // Boarding edge
@@ -79,6 +88,8 @@ namespace CCon {
                             getVert(pair.Item2.Stop, pair.Item2.ArrTime, trip));
                 }
             }
+            // IMPORTANT: Wait edges must be added last. The router counts on the wait edge
+            //            being the last in the successor array for any vertex.
             foreach (var itm in this.stopEventTimes) {
                 foreach (var pair in itm.Value.Pairs()) {
                     // A "wait on stop for the next event" edge.
@@ -86,7 +97,6 @@ namespace CCon {
                             getVert(itm.Key, pair.Item2, null));
                 }
             }
-            Console.Error.WriteLine("end");
             //PyREPL("G", G);
         }
 
@@ -95,7 +105,7 @@ namespace CCon {
             int E = 0;
             for (int u = 0; u < V; u++) E += this.succBuilder[u].Count;
             var G = new Model.CompactGraph(V, E);
-            Array.Copy(this.vertexBuilder.GetTable(), 0, G.Vertices, 0, V);
+            Array.Copy(this.vertexBuilder.BuildTable(), 0, G.Vertices, 0, V);
             int curEdge = 0;
             for (int u = 0; u < V; u++) {
                 G.Vertices[u].SuccStart = curEdge;
@@ -107,12 +117,16 @@ namespace CCon {
         }
 
         public Model BuildModel() {
-            this.CreateGraph();
+            using (new Profiler("Create graph"))
+                this.CreateGraph();
             var model = new Model();
-            model.Graph = this.BuildCompactGraph();
-            model.Stops = this.stopBuilder.GetTable();
-            model.Routes = this.routeBuilder.GetTable();
-            model.Calendars = this.calendarBuilder.GetTable();
+            using (new Profiler("Build compact graph"))
+                model.Graph = this.BuildCompactGraph();
+            using (new Profiler("Build compact tables")) {
+                model.Stops = this.stopBuilder.BuildTable();
+                model.Routes = this.routeBuilder.BuildTable();
+                model.Calendars = this.calendarBuilder.BuildTable();
+            }
             return model;
         }
 

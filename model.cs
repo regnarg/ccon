@@ -9,6 +9,7 @@ using static CCon.Utils;
 namespace CCon {
     public class Model {
         public struct Stop {
+            public string GTFSId;
             public string Name;
             public int FirstVertex; ///< The earliest at-stop vertex for the given stop.
         }
@@ -30,20 +31,6 @@ namespace CCon {
             public ushort Time; ///< Compact time (seconds/5 since midnight)
             public ushort Route; ///< Route id or ushort.MaxValue if this represents standing on a stop.
             public int SuccStart;
-
-            public void Write(BinaryWriter wr) {
-                wr.Write(Stop);
-                wr.Write(Time);
-                wr.Write(Route);
-                wr.WriteUInt24((uint)SuccStart);
-            }
-
-            public void Load(BinaryReader rd) {
-                this.Stop = rd.ReadUInt16();
-                this.Time = rd.ReadUInt16();
-                this.Route = rd.ReadUInt16();
-                this.SuccStart = (int)rd.ReadUInt24();
-            }
         }
 
         /**
@@ -108,7 +95,7 @@ namespace CCon {
                     this.Succ = new int[E];
                 }
                 int verticesSize = this.Vertices.Length * Marshal.SizeOf(typeof(Vertex));
-                int edgesSize = this.Succ.Length * Marshal.SizeOf(typeof(int));
+                //int edgesSize = this.Succ.Length * Marshal.SizeOf(typeof(int));
                 var mmf = MemoryMappedFile.CreateFromFile(fn, FileMode.Open, "x", 0, MemoryMappedFileAccess.Read);
                 var acc = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
                 using (new Profiler("Read graph")) {
@@ -128,30 +115,30 @@ namespace CCon {
         public CompactGraph Graph;
 
         public void Write(string fn) {
-                //var formatter = new BinaryFormatter();
-                var ser = MessagePackSerializer.Get<Model>();
-                using (var stream = new FileStream(fn + ".tmp", FileMode.Create, FileAccess.Write, FileShare.None)) {
-                    using (new Profiler("Write MsgPack"))
-                        ser.Pack(stream, this);
-                }
-                this.Graph.WriteData(fn+".mmap.tmp");
+            //var formatter = new BinaryFormatter();
+            var ser = MessagePackSerializer.Get<Model>();
+            using (var stream = new FileStream(fn + ".tmp", FileMode.Create, FileAccess.Write, FileShare.None)) {
+                using (new Profiler("Write MsgPack"))
+                    ser.Pack(stream, this);
+            }
+            this.Graph.WriteData(fn+".mmap.tmp");
 
-                // An "almost-atomic" replace of the two files. Very unlikely to fail in the middle of this.
-                File.Delete(fn);
-                File.Delete(fn+".mmap");
-                File.Move(fn+".tmp", fn);
-                File.Move(fn+".mmap.tmp", fn+".mmap");
+            // An "almost-atomic" replace of the two files. Very unlikely to fail in the middle of this.
+            File.Delete(fn);
+            File.Delete(fn+".mmap");
+            File.Move(fn+".tmp", fn);
+            File.Move(fn+".mmap.tmp", fn+".mmap");
         }
         public static Model Load(string fn) {
-                var ser = MessagePackSerializer.Get<Model>();
-                Model model;
-                using (Stream stream = new FileStream(fn, FileMode.Open, FileAccess.Read, FileShare.None)) {
-                    using (new Profiler("Load MsgPack"))
-                        model = ser.Unpack(stream);
-                    using (new Profiler("Load graph"))
-                        model.Graph.LoadData(fn+".mmap");
-                }
-                return model;
+            var ser = MessagePackSerializer.Get<Model>();
+            Model model;
+            using (Stream stream = new FileStream(fn, FileMode.Open, FileAccess.Read, FileShare.None)) {
+                using (new Profiler("Load MsgPack"))
+                    model = ser.Unpack(stream);
+                using (new Profiler("Load graph"))
+                    model.Graph.LoadData(fn+".mmap");
+            }
+            return model;
         }
     }
 }
