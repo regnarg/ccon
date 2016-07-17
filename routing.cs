@@ -11,6 +11,14 @@ namespace CCon {
         public ushort Stop;
         public ushort TimeDist; // walk time to the stop in 5s units
     }
+    public class ConnectionSegment {
+        public int FromVertex, ToVertex;
+        public string RouteShortName;
+    }
+    public class Connection {
+        public ushort startTime, endTime;
+        public List<ConnectionSegment> segments;
+    }
     public class Router {
         Model model;
         Model.Vertex[] vertices; // shortcut
@@ -31,7 +39,7 @@ namespace CCon {
             this.pred = new int[this.model.Graph.NVertices];
         }
 
-        public void Traverse(int start) {
+        void traverse(int start) {
             if (this.pred[start] != NotVisited) return;
             this.pred[start] = StartedHere;
             Queue<int> queue = new Queue<int>();
@@ -43,22 +51,49 @@ namespace CCon {
                 // Must do this convoluted thing, CompactGraph.GetSuccessors is several times slower.
                 // In C, one could at least wrap this in a macro. ;-)
                 for (int e = this.vertices[u].SuccStart; e < this.vertices[u+1].SuccStart; e++) {
+                    // TODO check calendar
                     queue.Enqueue(this.succ[e]);
                 }
             }
         }
 
-        public void FindConnection(ushort[] from, ushort[] to) {
-            for (uint u = 0; u < this.model.Graph.NVertices; u++) this.pred[u] = NotVisited;
-            List< Tuple<ushort, int> > departVertices = new List< Tuple<ushort, int> >();
-            foreach (ushort stop in from) {
+        List< Tuple<ushort, int> > stopsVertices(ushort[] stops, bool reverse=false) {
+            List< Tuple<ushort, int> > ret = new List< Tuple<ushort, int> >();
+            foreach (ushort stop in stops) {
                 foreach (int u in this.model.StopVertices(stop)) {
-                    departVertices.Add( Tuple.Create(this.vertices[u].Time, u) );
+                    ret.Add( Tuple.Create(this.vertices[u].Time, u) );
                 }
             }
-            departVertices.Sort((x,y) => y.Item1.CompareTo(x.Item1)); // sort in reverse time order
-            foreach (var itm in departVertices) {
-                this.Traverse(itm.Item2);
+            if (reverse) ret.Sort((x,y) => y.Item1.CompareTo(x.Item1)); // sort in reverse time order
+            else ret.Sort((x,y) => x.Item1.CompareTo(y.Item1)); // sort in reverse time order
+            return ret;
+        }
+
+        ConnectionSegment lastSegment(ref int v) {
+            Debug.Assert(this.vertices[v].CalRoute == ushort.MaxValue);
+            int end = this.pred[v];
+            int u = end;
+            ushort calRouteId = this.vertices[end].CalRoute;
+            Debug.Assert(calRouteId != ushort.MaxValue);
+            int last = end;
+            while (this.vertices[u].CalRoute != ushort.MaxValue) {
+                Debug.Assert(this.vertices[u].CalRoute == calRouteId);
+                u = this.pred[u];
+            }
+
+        }
+
+        public void FindConnection(ushort[] from, ushort[] to) {
+            for (uint u = 0; u < this.model.Graph.NVertices; u++) this.pred[u] = NotVisited;
+
+
+            foreach (var itm in this.stopsVertices(from, true)) {
+                this.traverse(itm.Item2);
+            }
+
+            foreach (var itm in this.stopsVertices(to)) {
+                List<ConnectionSegment> segs = new List<ConnectionSegment>();
+                // Trace predecessors to reconstruct the connection.
             }
         }
     }
