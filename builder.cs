@@ -128,7 +128,7 @@ namespace CCon {
                 model.Stops = this.stopBuilder.BuildTable();
                 model.CalRoutes = this.calRouteBuilder.BuildTable();
             }
-            PyREPL("model", model, "gtfs", gtfs, "Utils", typeof(Utils), "builder", this);
+            //PyREPL("model", model, "gtfs", gtfs, "Utils", typeof(Utils), "builder", this);
             return model;
         }
 

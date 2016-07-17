@@ -23,24 +23,10 @@ namespace CCon {
         }
     }
     class CLI {
-        bool[] visited;
-        int nVisited = 0;
         Model model;
 
         CLI(Model model) {
             this.model = model;
-        }
-
-        void Visit(int u) {
-            if (this.visited[u]) return;
-            this.visited[u] = true;
-            nVisited++;
-            for (int e = this.model.Graph.Vertices[u].SuccStart; e < this.model.Graph.Vertices[u+1].SuccStart; e++) {
-                Visit(this.model.Graph.Succ[e]);
-            }
-            // foreach (var v in this.model.Graph.GetSuccessors(u)) {
-            //     Visit(v);
-            // }
         }
 
         static Regex StopSpace = new Regex(@"[^a-z0-9]+");
@@ -94,30 +80,11 @@ namespace CCon {
         }
 
         void Run(string[] args) {
-            ushort[] stops = FindStop(args[1]);
-            foreach (var stop in stops) {
-                int vert = this.model.Stops[stop].FirstVertex;
-                if (vert == -1) continue;
-                while (true) {
-                    int next = -1;
-                    foreach (var succ in this.model.Graph.GetSuccessors(vert)) {
-                        var calRouteId = this.model.Graph.Vertices[succ].CalRoute;
-                        if (calRouteId == ushort.MaxValue) next = succ;
-                        else {
-                            Debug(FormatTime(this.model.Graph.Vertices[vert].Time), this.model.CalRoutes[calRouteId].RouteShortName);
-                        }
-                    }
-                    if (next == -1) break;
-                    else vert = next;
-                }
-            }
-            visited = new bool[model.Graph.NVertices];
-            using (new Profiler("DFS")) {
-                for (int u = 0; u < model.Graph.NVertices; u++) {
-                    Visit(u);
-                }
-            }
-            Debug("Visited {0} vertices.", this.nVisited);
+            ushort[] from = FindStop(args[1]);
+            ushort[] to = FindStop(args[2]);
+            var router = new Router(this.model);
+            using (new Profiler("Find connection"))
+                router.FindConnection(from, to);
         }
 
         static void Main(string[] args) {

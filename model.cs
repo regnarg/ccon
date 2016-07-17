@@ -141,5 +141,21 @@ namespace CCon {
             }
             return model;
         }
+
+        public IEnumerable<int> StopVertices(ushort stop) {
+            int u = this.Stops[stop].FirstVertex;
+            if (u == -1) yield break;
+            while (true) {
+                yield return u;
+                int succStart = this.Graph.Vertices[u].SuccStart;
+                int succEnd = this.Graph.Vertices[u+1].SuccStart;
+                if (succEnd > succStart) {
+                    // By convention the wait-on-stop edge is always the last one (see ModelBuilder.CreateGraph)
+                    u = this.Graph.Succ[succEnd-1];
+                } else {
+                    break;
+                }
+            }
+        }
     }
 }

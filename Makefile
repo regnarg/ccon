@@ -22,7 +22,7 @@ install-deps:
 ccon-build.exe: builder.cs gtfs.cs model.cs utils.cs
 	mcs $(CSFLAGS) -r:LINQtoCSV -r:MsgPack $(PY_REFS) -out:$@ $^
 
-ccon.exe: cli.cs model.cs utils.cs
+ccon.exe: cli.cs model.cs utils.cs routing.cs
 	mcs $(CSFLAGS) -r:MsgPack $(PY_REFS) -out:$@ $^
 
 model_console.exe: model_console.cs model.cs utils.cs
