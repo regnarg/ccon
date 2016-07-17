@@ -121,7 +121,6 @@ namespace CCon {
             gtfs.Load(args[0]);
             var builder = new ModelBuilder(gtfs);
             var model = builder.BuildModel();
-            Console.Error.WriteLine("Serializing");
             model.Write(args[1]);
         }
     }

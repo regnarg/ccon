@@ -52,14 +52,14 @@ namespace CCon {
         public class CompactGraph {
             public int NVertices;
             public int NEdges;
-            [MessagePackIgnore]
+            [MessagePackIgnore] // Saved separately, see WriteData/LoadData
             public Vertex[] Vertices;
             /**
              * Packed successors of all vertices.
              *
              * The successors of vertex $u$ are stored in Succ[Verices[u].SuccStart]..Succ[Verices[u+1].SuccStart]
              */
-            [MessagePackIgnore]
+            [MessagePackIgnore] // Saved separately, see WriteData/LoadData
             public int[] Succ;
 
             public CompactGraph() {}
@@ -72,6 +72,12 @@ namespace CCon {
                 // valid even for the last vertex.
                 this.Vertices[V].SuccStart = E;
                 this.Succ = new int[E];
+            }
+
+            public IEnumerable<int> GetSuccessors(int u) {
+                int start = this.Vertices[u].SuccStart;
+                int end = this.Vertices[u+1].SuccStart;
+                return new ArraySegment<int>(this.Succ, start, end-start);
             }
             
             internal void WriteData(string fn) {
@@ -96,19 +102,20 @@ namespace CCon {
             internal void  LoadData(string fn) {
                 Console.Error.WriteLine(string.Format("Vertex size: {0}", Marshal.SizeOf(typeof(Vertex))));
                 int V=this.NVertices, E=this.NEdges;
-                this.Vertices = new Vertex[V+1];
-                this.Vertices[V].SuccStart = E;
-                this.Succ = new int[E];
+                using (new Profiler("allocate arrays")) {
+                    this.Vertices = new Vertex[V+1];
+                    this.Vertices[V].SuccStart = E;
+                    this.Succ = new int[E];
+                }
                 int verticesSize = this.Vertices.Length * Marshal.SizeOf(typeof(Vertex));
                 int edgesSize = this.Succ.Length * Marshal.SizeOf(typeof(int));
                 var mmf = MemoryMappedFile.CreateFromFile(fn, FileMode.Open, "x", 0, MemoryMappedFileAccess.Read);
                 var acc = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
-                using (new Profiler("Read Graph")) {
+                using (new Profiler("Read graph")) {
                     int pos = 0;
                     acc.ReadArray(pos, this.Vertices, 0, this.Vertices.Length);
                     pos += verticesSize;
                     acc.ReadArray(pos, this.Succ, 0, this.Succ.Length);
-                    acc.Flush();
                 }
                 acc.Dispose();
                 mmf.Dispose();

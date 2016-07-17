@@ -1,3 +1,6 @@
+Serialization
+=============
+
 Save/Load speeds (to tmpfs, no I/O)
 
                 WR      RD      SZ
@@ -5,3 +8,14 @@ BinaryFormatter
 MsgPack only    3.2     9.8
 MsgPack/BinRW   0.75    0.5     50M
 MsgPack/mmap    0.15    0.05    60M
+
+# I/O
+
+SSD, 60M.... 0.25
+
+
+DFS
+===
+
+Direct          0.25
+GetSuccessors   0.64

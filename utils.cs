@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Globalization;
 
 using IronPython.Hosting;
 using Microsoft.Scripting;
@@ -18,12 +21,12 @@ namespace CCon {
                 last = itm;
             }
         }
-        public struct WithIndex<T> {
+        public struct _WithIndex<T> {
             public int Idx;
             public T Val;
         }
-        public static IEnumerable< WithIndex<T> > Indexed<T>(this IEnumerable<T> seq) {
-            return seq.Select((val,idx) => new WithIndex<T> {Idx=idx, Val=val});
+        public static IEnumerable< _WithIndex<T> > WithIndex<T>(this IEnumerable<T> seq) {
+            return seq.Select((val,idx) => new _WithIndex<T> {Idx=idx, Val=val});
         }
         // From http://stackoverflow.com/a/1514470
         public static V SetDefault<K,V>(this IDictionary<K,V> dict, K key, V dfl) {
@@ -52,7 +55,6 @@ namespace CCon {
                 
                 scope.SetVariable((string) pair.Item1, pair.Item2);
             }
-			// sys.path.insert(0,'/data/mff/4V/cs-zap/ipython/Lib');import readline; 
             var code = "try: import sys; sys.ps1='\\n\\n'+sys.ps1+'\\n'; sys.path.append('/usr/lib/ipy/Lib');import code; code.interact(None,None,locals())\nexcept: __import__('traceback').print_exc()";
             var source = engine.CreateScriptSourceFromString(code, SourceCodeKind.Statements);
             source.Execute(scope); 
@@ -143,11 +145,30 @@ namespace CCon {
 
             public void Dispose() {
                 this.stopwatch.Stop();
-                Console.Error.WriteLine(string.Format("[{0}.{1,03}] {2}", this.stopwatch.ElapsedMilliseconds/1000,
+                Debug(string.Format("[{0}.{1,03}] {2}", this.stopwatch.ElapsedMilliseconds/1000,
                             this.stopwatch.ElapsedMilliseconds%1000, this.desc));
             }
         }
+
+        /// Remove diacritic marks (accents) from string.
+        ///
+        /// Taken from http://archives.miloush.net/michkap/archive/2007/05/14/2629747.html.
+        public static string RemoveDiacritics(string s) {
+            string nfd = s.Normalize(NormalizationForm.FormD);
+            StringBuilder sb = new StringBuilder();
+
+            for(int i = 0; i < nfd.Length; i++) {
+                UnicodeCategory uc = CharUnicodeInfo.GetUnicodeCategory(nfd[i]);
+                if(uc != UnicodeCategory.NonSpacingMark) {
+                    sb.Append(nfd[i]);
+                }
+            }
+
+            return(sb.ToString().Normalize(NormalizationForm.FormC));
+        }
+
+        public static void Debug(params object[] args) {
+            Console.Error.WriteLine("DEBUG: " + string.Join(" ", args.Select(x => x.ToString())));
+        }
     }
-
-
 }
