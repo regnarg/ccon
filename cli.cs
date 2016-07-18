@@ -58,8 +58,7 @@ namespace CCon {
         [Option('D', "date", MetaValue="DATE", HelpText="Travel date")]
         public string DateStr { set { this.Date = DateTime.Parse(value).Date; } }
 
-        [Option("db", MetaValue="FILE.dat", HelpText="Path to timetable database (created by ccon-build)",
-                Default="~/.cache/ccon.dat")]
+        [Option("db", MetaValue="FILE", HelpText="Path to timetable database created by ccon-build [default:~/.cache/ccon.dat]")]
         public string ModelPath { get; set; }
 
         public static Arguments Parse(string[] args) {
@@ -74,6 +73,7 @@ namespace CCon {
     class CLI {
         Model model;
         const int ShowConnections = 5; // how many connections to show by default
+        Dictionary<string, string> aliases = new Dictionary<string, string>();
 
         CLI(Model model = null) {
             this.model = model;
@@ -130,6 +130,12 @@ namespace CCon {
         }
 
         static readonly Regex StopDistRE = new Regex(@"([^+]*)(?:\+([0-9]+))?");
+
+
+        public string ResolveAlias(string s) {
+            if (this.aliases.ContainsKey(s)) return this.aliases[s];
+            else return s;
+        }
 
         /// Parse the a virtual stop definition.
         ///
@@ -222,10 +228,29 @@ namespace CCon {
             }
         }
 
+        void LoadConfig() {
+            var fn = GetEnv("HOME") + "/.config/ccon.conf";
+            if (!File.Exists(fn)) return;
+            using (var sr = new StreamReader(fn)) {
+                string line;
+                while ((line = sr.ReadLine()) != null) {
+                    line = line.Trim();
+                    if (line == "") continue;
+                    var parts = line.Split('=');
+                    if (parts.Length != 2) continue;
+                    var key = parts[0].Trim();
+                    var val = parts[1].Trim();
+                    this.aliases[key] = val;
+                }
+
+            }
+        }
+
         void Run(Arguments args) {
-            this.model = Model.Load(args.ModelPath);
-            StopDistance[] from = FindStopDists(args.From);
-            StopDistance[] to = FindStopDists(args.To);
+            this.LoadConfig();
+            this.model = Model.Load(args.ModelPath ?? GetEnv("CCON_DB") ?? (GetEnv("HOME")+"/.cache/ccon.dat"));
+            StopDistance[] from = FindStopDists(ResolveAlias(args.From));
+            StopDistance[] to = FindStopDists(ResolveAlias(args.To));
             var router = new Router(this.model, args.Date);
             IEnumerable<Connection> conns;
             using (new Profiler("Find connection"))

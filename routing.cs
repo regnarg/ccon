@@ -73,7 +73,7 @@ namespace CCon {
         void traverse(int start) {
             if (this.pred[start] != NotVisited) return;
             if (!this.checkCalendar(start)) return;
-            Dbg("Traverse", this.model.DescribeVertex(start));
+            //Dbg("Traverse", this.model.DescribeVertex(start));
             this.pred[start] = StartedHere;
             Queue<int> queue = new Queue<int>();
             queue.Enqueue(start);

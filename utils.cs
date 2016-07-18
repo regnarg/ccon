@@ -192,5 +192,10 @@ namespace CCon {
         public static void Dbg(params object[] args) {
             Console.Error.WriteLine("DEBUG: " + string.Join(" ", args.Select(x => x.ToString())));
         }
+
+        /// Shortcut for Environment.GetEnvironmentVariable
+        public static string GetEnv(string var) {
+            return Environment.GetEnvironmentVariable(var);
+        }
     }
 }
