@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using LINQtoCSV;
 using System.Collections.Generic;
 using System.Linq;
@@ -32,6 +33,51 @@ namespace CCon {
             public string Id;
             [CsvColumn(Name="route_short_name")]
             public string ShortName;
+            [CsvColumn(Name="monday")]
+            public int Monday;
+            [CsvColumn(Name="tuesday")]
+            public int Tuesday;
+            [CsvColumn(Name="wednesday")]
+            public int Wednesday;
+            [CsvColumn(Name="thursday")]
+            public int Thursday;
+            [CsvColumn(Name="friday")]
+            public int Friday;
+            [CsvColumn(Name="saturday")]
+            public int Saturday;
+            [CsvColumn(Name="sunday")]
+            public int Sunday;
+
+            public DateTime Start;
+            public DateTime End;
+
+            [CsvColumn(Name="start_date")]
+            public string StartStr {
+                set { this.Start = ParseDate(value); }
+                get { return FormatDate(this.Start); }
+            }
+            [CsvColumn(Name="end_date")]
+            public string EndStr {
+                // In GTFS the `end` is inclusive. In our representation, it is not.
+                set { this.End = ParseDate(value).AddDays(1); }
+                get { return FormatDate(this.End); }
+            }
+
+            public HashSet<DateTime> Excludes = new HashSet<DateTime>();
+            public HashSet<DateTime> Includes = new HashSet<DateTime>();
+        }
+        public class CalendarDate {
+            [CsvColumn(Name="service_id")]
+            public string CalendarId;
+            [CsvColumn(Name="exception_type")]
+            public int ExceptionType;
+            public DateTime Date;
+
+            [CsvColumn(Name="date")]
+            public string Str {
+                set { this.Date = ParseDate(value); }
+                get { return FormatDate(this.Date); }
+            }
         }
         public class StopTime {
             [CsvColumn(Name="trip_id")]
@@ -101,10 +147,15 @@ namespace CCon {
         public void Load(string dir) {
             string b = dir + "/";
             IEnumerable<StopTime> stopTimes;
+            IEnumerable<CalendarDate> calendarDates;
             using (new Profiler("Load all GTFS tables")) {
                 this.Stops = this.LoadCSV<Stop>(b+"stops.txt").ToDictionary(t => t.Id);
                 this.Routes = this.LoadCSV<Route>(b+"routes.txt").ToDictionary(t => t.Id);
                 this.Calendars = this.LoadCSV<Calendar>(b+"calendar.txt").ToDictionary(t => t.Id);
+                if (File.Exists(b+"calendar_dates.txt"))
+                    calendarDates = this.LoadCSV<CalendarDate>(b+"calendar_dates.txt");
+                else
+                    calendarDates = Enumerable.Empty<CalendarDate>();
                 this.Trips = this.LoadCSV<Trip>(b+"trips.txt").ToDictionary(t => t.Id);
                 stopTimes = this.LoadCSV<StopTime>(b+"stop_times.txt");
             }
@@ -120,6 +171,19 @@ namespace CCon {
             foreach (var g in stopTimes.GroupBy(t => t.TripId)) {
                 this.Trips[g.Key].StopTimes = g.OrderBy(t => t.Sequence).ToArray();
             }
+            foreach (var cd in calendarDates) {
+                if (cd.ExceptionType == 1) this.Calendars[cd.CalendarId].Includes.Add(cd.Date);
+                else if (cd.ExceptionType == 2) this.Calendars[cd.CalendarId].Excludes.Add(cd.Date);
+                else throw new Invalid(string.Format("Invalid calendar exception type: {0}", cd.ExceptionType));
+            }
+        }
+
+        public static DateTime ParseDate(string s) {
+            return DateTime.ParseExact(s, "yyyyMMdd", null);
+        }
+
+        public static string FormatDate(DateTime dt) {
+            return dt.ToString("yyyyMMdd");
         }
     }
 }

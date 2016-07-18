@@ -105,10 +105,16 @@ namespace CCon {
                 RouteShortName = "",
             }));
 
+            string bold = "\x1b[1m{0}\x1b[0m";
 
             foreach (var row in tab) {
+                var arrString = timeForPrint(row.ArrTime);
+                var depString = timeForPrint(row.DepTime);
+                // Format the original departure and final arrival bright and bold
+                if (row.ArrTime == ushort.MaxValue) depString = string.Format(bold, depString);
+                if (row.DepTime == ushort.MaxValue) arrString = string.Format(bold, arrString);
                 Console.WriteLine("{0,-25}  {1,5}  {2,5}  {3}", row.StopName,
-                        timeForPrint(row.ArrTime), timeForPrint(row.DepTime),
+                        arrString, depString,
                         row.RouteShortName);
             }
         }

@@ -25,8 +25,16 @@ namespace CCon {
     }
     public class Router {
         Model model;
-        Model.Vertex[] vertices; // shortcut
-        int[] succ;
+        Model.Vertex[] vertices; ///< Shortcut `this.model.Graph.Vertices`
+        int[] succ; ///< Shortcut for `this.model.Graph.Succ`
+        DateTime date; ///< The date for which we are looking up connections.
+        int weekDay;
+
+        /// Cache of calendar results.
+        ///
+        /// For each calendar IDs stores a boolean indicating whether vehicles with this
+        /// calendar operate on `this.date` or not.
+        Dictionary<ushort, bool> calCache = new Dictionary<ushort, bool>();
 
         const int NotVisited = -1;
         const int StartedHere = -2;
@@ -36,16 +44,35 @@ namespace CCon {
         /// not yet known or StartedHere if it is the start of a path).
         int[] pred;
 
-        public Router(Model model) {
+        public Router(Model model, DateTime date = default(DateTime)) {
             this.model = model;
             this.vertices = model.Graph.Vertices;
             this.succ = model.Graph.Succ;
             this.pred = new int[this.model.Graph.NVertices];
+            this.date = (date == default(DateTime) ? DateTime.Now.Date : date.Date);
+            // Convert weekday to European convention (0=Monday)
+            this.weekDay = (int)date.DayOfWeek - 1;
+            if (this.weekDay == -1) this.weekDay = 7;
+        }
+
+        /// Check whether the vehicle corresponding to `vertex` operates on `this.date` according to its Calendar.
+        bool checkCalendar(int vertex) {
+            ushort calRouteId = this.vertices[vertex].CalRoute;
+            // If this vertex represents standing on a stop, that can be done on any day ;-)
+            if (calRouteId == ushort.MaxValue) return true;
+            ushort calendarId = this.model.CalRoutes[calRouteId].Calendar;
+            return this.calCache.SetDefault(calendarId, () => {
+                Calendar cal = this.model.Calendars[calendarId];
+                if (cal.Excludes.Contains(date)) return false;
+                else if (cal.Includes.Contains(date)) return true;
+                else return (date > cal.Start && date < cal.End && cal.WeekDays[this.weekDay]);
+            });
         }
 
         void traverse(int start) {
             if (this.pred[start] != NotVisited) return;
-            Dbg("Traverse", this.model.DescribeVertex(start));
+            if (!this.checkCalendar(start)) return;
+            //Dbg("Traverse", this.model.DescribeVertex(start));
             this.pred[start] = StartedHere;
             Queue<int> queue = new Queue<int>();
             queue.Enqueue(start);
@@ -58,6 +85,7 @@ namespace CCon {
                     // TODO check calendar
                     int v = this.succ[e];
                     if (this.pred[v] != NotVisited) continue;
+                    if (!this.checkCalendar(v)) continue;
                     this.pred[v] = u;
                     queue.Enqueue(v);
                 }
@@ -80,7 +108,7 @@ namespace CCon {
         ///
         /// Return the found segment and update $v$ in place to be the endpoint of the remaining path.
         ConnectionSegment lastSegment(ref int v) {
-            Dbg("lastSegment", this.model.DescribeVertex(v));
+            //Dbg("lastSegment", this.model.DescribeVertex(v));
             while (true) {
                 Debug.Assert(v >= 0);
                 Debug.Assert(this.vertices[v].CalRoute == ushort.MaxValue);
@@ -134,17 +162,17 @@ namespace CCon {
                 // Don't connections that have waiting on stop at the end (there will be another
                 // connection with an earlier arrival time that shall be listed instead).
                 if (this.vertices[this.pred[itm.Item2]].CalRoute == ushort.MaxValue) continue;
-                dumpPath(itm.Item2);
+                //dumpPath(itm.Item2);
                 Connection conn = new Connection();
                 // Trace predecessors to reconstruct the connection.
                 int v = itm.Item2;
                 ConnectionSegment seg;
                 while ((seg = this.lastSegment(ref v)) != null) conn.Segments.Add(seg);
                 conn.Segments.Reverse(); // we found segments from last to first, correct that
-                Dbg("# Conn with",conn.Segments.Count, "segments", this.model.DescribeVertex(itm.Item2));
-                foreach (var tmpseg in conn.Segments) {
-                    Dbg("Segment",this.model.DescribeVertex(tmpseg.Start), "..", this.model.DescribeVertex(tmpseg.End));
-                }
+                //Dbg("# Conn with",conn.Segments.Count, "segments", this.model.DescribeVertex(itm.Item2));
+                //foreach (var tmpseg in conn.Segments) {
+                //    Dbg("Segment",this.model.DescribeVertex(tmpseg.Start), "..", this.model.DescribeVertex(tmpseg.End));
+                //}
                 conn.StartTime = this.vertices[conn.Segments[0].Start].Time;
                 conn.EndTime = this.vertices[conn.Segments[conn.Segments.Count - 1].Start].Time;
                 ret.Add(conn);

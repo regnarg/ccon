@@ -1,0 +1,12 @@
+  * virtuální zastávky
+  * aliasy
+  * kango2gtfs
+  * pročištění spojení v inkluzi:
+
+        Smíchovské nádraží                18:36  20
+        Malostranské náměstí       18:48         
+        ------------------------------------------------------------------
+        Smíchovské nádraží                18:36  20
+        Újezd                      18:44  18:48  22
+        Malostranské náměstí       18:51         
+

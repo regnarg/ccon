@@ -11,16 +11,12 @@ CSFLAGS=$(CSFLAGS_COMMON) $(CSFLAGS_DBG)
 install-deps:
 	mkdir -p 3rd
 	cd 3rd && nuget install -x ../packages.config
-	#ln -f $$(ls -d docopt.net/lib/net[34]* | tail -1)/*.dll .
-	ln -f $$(ls -d 3rd/LINQtoCSV/lib/[Nn]et[34]* | tail -1)/*.dll .
-	#ln -f $$(ls -d 3rd/YamlSerializer/lib/[Nn]et[34]* | tail -1)/*.dll .
-	#ln -f $$(ls -d 3rd/QuickGraph/lib/[Nn]et[34]* | tail -1)/*.dll .
-	#ln -f 3rd/TreeLibInterface/lib/*.dll .
-	#ln -f 3rd/TreeLib/lib/*.dll .
+	ln -f $$(ls -d 3rd/LINQtoCSV/lib/[Nn]et[234]* | sort -f | tail -1)/*.dll .
+	ln -f $$(ls -d 3rd/ProjNet/lib/[Nn]et[234]* | sort -f | tail -1)/*.dll .
 
 # -r:TreeLibInterface -r:TreeLib 
 ccon-build.exe: builder.cs gtfs.cs model.cs utils.cs
-	mcs $(CSFLAGS) -r:LINQtoCSV -r:MsgPack $(PY_REFS) -out:$@ $^
+	mcs $(CSFLAGS) -r:LINQtoCSV -r:MsgPack -r:ProjNet $(PY_REFS) -out:$@ $^
 
 ccon.exe: cli.cs model.cs utils.cs routing.cs
 	mcs $(CSFLAGS) -r:MsgPack $(PY_REFS) -out:$@ $^

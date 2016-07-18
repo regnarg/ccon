@@ -1,10 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
+
 using static CCon.GTFS;
 using static CCon.Utils;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.IO;
+
+using ProjNet;
+using ProjNet.CoordinateSystems;
+using ProjNet.CoordinateSystems.Transformations;
+
+
 using VertexKey = System.Tuple<CCon.GTFS.Stop, ushort, CCon.GTFS.Trip>;
 using CalRouteKey = System.Tuple<CCon.GTFS.Calendar, CCon.GTFS.Route>;
 
@@ -34,7 +40,7 @@ namespace CCon {
         ///
         /// The pairs are oriented, i.e. of points A and B are close, both
         /// (A,B) and (B,A) pairs are returned.
-        public IEnumerable< Tuple<T,T> > ClosePairs() {
+        public IEnumerable< Tuple<T,T,double> > ClosePairs() {
             foreach (var cellItem in this.cells) {
                 var cell = cellItem.Key;
                 foreach (var itm in cellItem.Value) {
@@ -44,8 +50,10 @@ namespace CCon {
                         var ncell = Tuple.Create(cell.Item1+dx, cell.Item2+dy);
                         if (!this.cells.ContainsKey(ncell)) continue;
                         foreach (var neigh in this.cells[ncell]) {
-                            if (this.distance(itm, neigh) < this.maxDistance)
-                                yield return Tuple.Create(itm.Item3, neigh.Item3);
+                            if (neigh.Item3.Equals(itm.Item3)) continue; // do not output any point as close to itself
+                            double dist = this.distance(itm, neigh);
+                            if (dist < this.maxDistance)
+                                yield return Tuple.Create(itm.Item3, neigh.Item3, dist);
                         }
                     }
                 }
@@ -54,7 +62,7 @@ namespace CCon {
     }
     class ModelBuilder {
         public ushort TransferTime = (ushort) (2*60/TimeGranularity);
-        public double MaxWalkDistance = 1000; ///< The maximum distance for walks between stops [m].
+        public double MaxWalkDistance = 250; ///< The maximum distance for walks between stops [m].
         // Humans usually walk faster but we have to account for street crossings and similar.
         public double WalkSpeed = 4.5; ///< Assumed walking speed [km/h].
         GTFS gtfs;
@@ -63,6 +71,7 @@ namespace CCon {
         Dictionary< Stop, SortedSet<ushort> > stopEventTimes = new Dictionary< Stop, SortedSet<ushort> >();
 
         CompactTableBuilder<Stop,        Model.Stop    > stopBuilder;
+        CompactTableBuilder<Calendar,    Model.Calendar> calendarBuilder;
         CompactTableBuilder<CalRouteKey, Model.CalRoute> calRouteBuilder;
         CompactTableBuilder<VertexKey,   Model.Vertex  > vertexBuilder;
         List< List<int> > succBuilder = new List< List<int> >();
@@ -70,9 +79,11 @@ namespace CCon {
         public ModelBuilder(GTFS gtfs) {
             this.gtfs = gtfs;
             this.stopBuilder     = new CompactTableBuilder<Stop,        Model.Stop    >(this.buildStop);
+            this.calendarBuilder = new CompactTableBuilder<Calendar,    Model.Calendar>(this.buildCalendar);
             this.calRouteBuilder = new CompactTableBuilder<CalRouteKey, Model.CalRoute>(this.buildCalRoute);
             this.vertexBuilder   = new CompactTableBuilder<VertexKey,   Model.Vertex  >(this.buildVertex);
             this.stopBuilder.Add(gtfs.Stops.Values);
+            this.calendarBuilder.Add(gtfs.Calendars.Values);
             foreach (var trip in gtfs.Trips.Values) {
                 this.calRouteBuilder.Add(new CalRouteKey(trip.Calendar, trip.Route));
             }
@@ -103,15 +114,66 @@ namespace CCon {
             }
             return new Model.Stop { GTFSId = stop.Id, Name = stop.Name, FirstVertex = firstVertex };
         }
+        Model.Calendar buildCalendar(Calendar cal) {
+            return new Model.Calendar {
+                WeekDays = new bool[7] { cal.Monday!=0, cal.Tuesday!=0, cal.Wednesday!=0,
+                                         cal.Thursday!=0, cal.Friday!=0, cal.Saturday!=0, cal.Sunday!=0 },
+                Start = cal.Start,
+                End = cal.End,
+                Excludes = cal.Excludes,
+                Includes = cal.Includes,
+            };
+        }
         Model.CalRoute buildCalRoute(CalRouteKey key) {
             return new Model.CalRoute {
                 RouteShortName = key.Item2.ShortName,
-                // TODO
+                Calendar = (ushort) this.calendarBuilder.GetId(key.Item1),
             };
         }
 
         int getVert(Stop stop, ushort time, Trip trip) {
             return this.vertexBuilder.Add(new VertexKey(stop, time, trip));
+        }
+
+        IEnumerable< Tuple<Stop, Stop, double> > findCloseStops() {
+            // Add walk edges.
+            ClosePointFinder<Stop> cpf = new ClosePointFinder<Stop>(MaxWalkDistance);
+
+            CoordinateSystem wgs84 = GeographicCoordinateSystem.WGS84;
+            CoordinateSystem utm33 = ProjectedCoordinateSystem.WGS84_UTM(33, true);
+            var fact = new CoordinateTransformationFactory();
+            var transformation = fact.CreateFromCoordinateSystems(wgs84, utm33);
+
+            foreach (var stop in this.gtfs.Stops.Values) {
+                // Convert coordinates to UTM (local Cartesian metre grid) to correctly
+                // compute distances.
+                double[] utm = transformation.MathTransform.Transform(new double[] { stop.Lon, stop.Lat });
+                cpf.Add(utm[0], utm[1], stop);
+            }
+
+            return cpf.ClosePairs();
+        }
+
+        void addWalkEdges() {
+            foreach (var pair in this.findCloseStops()) {
+                if (!(stopEventTimes.ContainsKey(pair.Item1) && stopEventTimes.ContainsKey(pair.Item2)))
+                    continue;
+                Dbg("Close pair", pair.Item1.Name, "..", pair.Item2.Name, pair.Item3);
+
+                ushort walkTime = (ushort) Math.Round(pair.Item3 / (this.WalkSpeed / 3.6) / TimeGranularity);
+
+                var trgTimes = stopEventTimes[pair.Item2].ToList();
+                foreach (ushort tm1 in stopEventTimes[pair.Item1]) {
+                    ushort arrTime = (ushort)(tm1 + walkTime);
+                    int trgIdx = trgTimes.BinarySearch(arrTime);   
+                    if (trgIdx < 0) trgIdx = ~trgIdx; // exact time not found -> get first greater
+                    if (trgIdx >= trgTimes.Count) continue;
+                    while (trgIdx > 0 && trgTimes[trgIdx-1] >= arrTime) trgIdx--;
+                    AddEdge(getVert(pair.Item1, tm1, null),
+                            getVert(pair.Item2, trgTimes[trgIdx], null));
+                }
+                
+            }
         }
 
         void CreateGraph() {
@@ -136,11 +198,8 @@ namespace CCon {
                             getVert(pair.Item2.Stop, pair.Item2.ArrTime, trip));
                 }
             }
-            // Add walk edges.
-            ClosePointFinder<Stop> cpf = new ClosePointFinder<Stop>(MaxWalkDistance);
-            foreach (var stop in this.gtfs.Stops.Values) {
-                //cpf.Add();
-            }
+            using (new Profiler("Add walk edges"))
+                this.addWalkEdges();
             // IMPORTANT: Wait edges must be added last. The router counts on the wait edge
             //            being the last in the successor array for any vertex.
             foreach (var itm in this.stopEventTimes) {
@@ -178,6 +237,7 @@ namespace CCon {
             using (new Profiler("Build compact tables")) {
                 model.Stops = this.stopBuilder.BuildTable();
                 model.CalRoutes = this.calRouteBuilder.BuildTable();
+                model.Calendars = this.calendarBuilder.BuildTable();
             }
             //PyREPL("model", model, "gtfs", gtfs, "Utils", typeof(Utils), "builder", this);
             return model;

@@ -16,15 +16,18 @@ namespace CCon {
         public struct Route {
             public string ShortName;
         }
-        public struct CalRoute {
-            public string RouteShortName; ///< The line number of the route (e.g. "12", "C")
-            public DateTime start; ///< First day vehicles with this calendar operate (midnight)
-            public DateTime end; ///< The first day _after_ vehicles with this calendar stop operating (midnight)
-            public bool[] weekdays; ///< Weekday when this service operates (characteristic vector, 0=Monday)
+        public struct Calendar {
+            public DateTime Start; ///< First day vehicles with this calendar operate (midnight)
+            public DateTime End; ///< The first day _after_ vehicles with this calendar stop operating (midnight)
+            public bool[] WeekDays; ///< Weekday when this service operates (characteristic vector, 0=Monday)
             /// List of days when vehicles with this calendar exceptionally do not operate,
             /// even though they are in the [start, end) range.
-            public short[] excludes;
-            public short[] includes; ///< List of 
+            public HashSet<DateTime> Excludes;
+            public HashSet<DateTime> Includes; ///< List of 
+        }
+        public struct CalRoute {
+            public string RouteShortName; ///< The line number of the route (e.g. "12", "C")
+            public ushort Calendar;
         }
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
         public struct Vertex {
@@ -97,8 +100,9 @@ namespace CCon {
                     this.Succ = new int[E];
                 }
                 int verticesSize = this.Vertices.Length * Marshal.SizeOf(typeof(Vertex));
-                //int edgesSize = this.Succ.Length * Marshal.SizeOf(typeof(int));
-                var mmf = MemoryMappedFile.CreateFromFile(fn, FileMode.Open, "x", 0, MemoryMappedFileAccess.Read);
+                int edgesSize = this.Succ.Length * Marshal.SizeOf(typeof(int));
+                int size = verticesSize + edgesSize;
+                var mmf = MemoryMappedFile.CreateFromFile(fn, FileMode.Open, "x", size, MemoryMappedFileAccess.Read);
                 var acc = mmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
                 using (new Profiler("Read graph")) {
                     int pos = 0;
@@ -112,6 +116,7 @@ namespace CCon {
         }
 
         public Stop[] Stops;
+        public Calendar[] Calendars;
         public CalRoute[] CalRoutes;
         public CompactGraph Graph;
 
