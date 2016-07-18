@@ -119,7 +119,6 @@ namespace CCon {
                 if (end == StartedHere) { v = -1; return null; } // hit end of path
 
                 int u = end;
-                Dbg("end",end);
                 ushort calRouteId = this.vertices[end].CalRoute;
                 Debug.Assert(calRouteId != ushort.MaxValue);
                 int start = end;
@@ -175,7 +174,7 @@ namespace CCon {
                 //    Dbg("Segment",this.model.DescribeVertex(tmpseg.Start), "..", this.model.DescribeVertex(tmpseg.End));
                 //}
                 conn.StartTime = this.vertices[conn.Segments[0].Start].Time;
-                conn.EndTime = this.vertices[conn.Segments[conn.Segments.Count - 1].Start].Time;
+                conn.EndTime = this.vertices[conn.Segments[conn.Segments.Count - 1].End].Time;
                 ret.Add(conn);
             }
             return ret;

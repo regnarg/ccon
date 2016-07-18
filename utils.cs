@@ -46,7 +46,12 @@ namespace CCon {
             }
             return val;
         }
-        
+
+        // From http://stackoverflow.com/a/3453301
+        public static IEnumerable<T> TakeLast<T>(this IEnumerable<T> source, int N) {
+            return source.Skip(Math.Max(0, source.Count() - N));
+        }
+
         public static void PyREPL(params object[] vars) {
             var engine = Python.CreateEngine();
             var scope = engine.CreateScope();

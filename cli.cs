@@ -10,7 +10,9 @@ using CommandLine.Text;
 using static CCon.Model;
 using static CCon.Utils;
 
-[assembly:AssemblyCopyright("Filip Stedronsky")]
+//HACK to get this into help message
+[assembly:AssemblyCopyright("Usage: ccon [options] [(-d|-a) HH:MM] [-D DATE] [-v VIA] FROM TO")]
+[assembly:AssemblyVersion("0.1")]
 
 
 namespace CCon {
@@ -31,17 +33,25 @@ namespace CCon {
     }
 
     class Arguments {
-        [Value(0, MetaValue="FROM-STOP", HelpText="Starting stop", Required=true)]
+        [Value(0, MetaValue="FROM", HelpText="Starting stop", Required=true)]
         public string From { get; set; }
-        [Value(1, MetaValue="TO-STOP", HelpText="Destination stop", Required=true)]
+
+        [Value(1, MetaValue="TO", HelpText="Destination stop", Required=true)]
         public string To { get; set; }
+
         [Option('v', MetaValue="STOP", HelpText="Travel via STOP")]
         public string Via { get; set; }
+
         public ushort DepTime = ushort.MaxValue, ArrTime = ushort.MaxValue;
+
         [Option('d', "dep", MetaValue="HH:MM", HelpText="Departure time (earliest possible)")]
-        public string DepTimeStr { set { this.DepTime = ParseTime(value); } }
+        public string DepTimeStr { set { this.DepTime = ParseTime(value+":00"); } }
+
         [Option('a', "arr", MetaValue="HH:MM", HelpText="Arrival time (latest possible)")]
-        public string ArrTimeStr { set { this.DepTime = ParseTime(value); } }
+        public string ArrTimeStr { set { this.ArrTime = ParseTime(value+":00"); } }
+
+        [Option('A', "all", HelpText="Do not limit number of shown connections.")]
+        public bool ShowAll { get; set; }
 
         public DateTime Date;
         [Option('D', "date", MetaValue="DATE", HelpText="Travel date")]
@@ -62,6 +72,7 @@ namespace CCon {
 
     class CLI {
         Model model;
+        const int ShowConnections = 5; // how many connections to show by default
 
         CLI(Model model = null) {
             this.model = model;
@@ -162,10 +173,20 @@ namespace CCon {
             ushort[] from = FindStop(args.From);
             ushort[] to = FindStop(args.To);
             var router = new Router(this.model, args.Date);
-            List<Connection> conns;
+            IEnumerable<Connection> conns;
             using (new Profiler("Find connection"))
                 conns = router.FindConnections(from, to);
-            Dbg("Found",conns.Count,"connections");
+            if (args.ArrTime == ushort.MaxValue && args.DepTime == ushort.MaxValue) {
+                args.DepTime = (ushort) (DateTime.Now.TimeOfDay.TotalSeconds / TimeGranularity);
+            }
+            if (args.DepTime != ushort.MaxValue) {
+                conns = conns.Where(conn => conn.StartTime >= args.DepTime);
+                if (args.ArrTime == ushort.MaxValue && !args.ShowAll) conns = conns.Take(ShowConnections);
+            }
+            if (args.ArrTime != ushort.MaxValue) {
+                conns = conns.Where(conn => conn.EndTime <= args.ArrTime);
+                if (args.DepTime == ushort.MaxValue && !args.ShowAll) conns = conns.TakeLast(ShowConnections);
+            }
             foreach (var conn in conns) {
                 Console.WriteLine("------------------------------------------------------------------");
                 this.PrintConnection(conn);
