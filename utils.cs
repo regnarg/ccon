@@ -153,7 +153,7 @@ namespace CCon {
 
             public void Dispose() {
                 this.stopwatch.Stop();
-                Debug(string.Format("[{0}.{1,03}] {2}", this.stopwatch.ElapsedMilliseconds/1000,
+                Dbg(string.Format("[{0}.{1:D3}] {2}", this.stopwatch.ElapsedMilliseconds/1000,
                             this.stopwatch.ElapsedMilliseconds%1000, this.desc));
             }
         }
@@ -175,7 +175,7 @@ namespace CCon {
             return(sb.ToString().Normalize(NormalizationForm.FormC));
         }
 
-        public static void Debug(params object[] args) {
+        public static void Dbg(params object[] args) {
             Console.Error.WriteLine("DEBUG: " + string.Join(" ", args.Select(x => x.ToString())));
         }
     }

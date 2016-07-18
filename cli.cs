@@ -56,7 +56,7 @@ namespace CCon {
                 // Penalize extra words at the end (-1 point for each word not in the query)
                 score -= (words.Length - qwords.Length);
 
-                Debug("Stop", stop.Val.Name, "score", score);
+                Dbg("Stop", stop.Val.Name, "score", score);
 
                 if (score > bestScore) {
                     bestScore = score;
@@ -79,12 +79,41 @@ namespace CCon {
             return bestIds.ToArray();
         }
 
+        public void PrintConnection(Connection conn) {
+            ushort lastArrTime = ushort.MaxValue;
+            var V = this.model.Graph.Vertices;
+            var tab = conn.Segments.Select(seg => {
+                    var row = new {
+                        StopName = this.model.Stops[V[seg.Start].Stop].Name,
+                        ArrTime = lastArrTime,
+                        DepTime = V[seg.Start].Time,
+                        RouteShortName = this.model.CalRoutes[V[seg.Start].CalRoute].RouteShortName,
+                    };
+                    lastArrTime = V[seg.End].Time;
+                    return row;
+            }).Concat(new[] { new {
+                StopName = this.model.Stops[V[conn.Segments.Last().End].Stop].Name,
+                ArrTime = lastArrTime,
+                DepTime = ushort.MaxValue,
+                RouteShortName = "",
+            }});
+
+            foreach (var row in tab) {
+                
+            }
+        }
+
         void Run(string[] args) {
             ushort[] from = FindStop(args[1]);
             ushort[] to = FindStop(args[2]);
             var router = new Router(this.model);
+            List<Connection> conns;
             using (new Profiler("Find connection"))
-                router.FindConnection(from, to);
+                conns = router.FindConnections(from, to);
+            Dbg("Found",conns.Count,"connections");
+            foreach (var conn in conns) {
+                this.PrintConnection(conn);
+            }
         }
 
         static void Main(string[] args) {

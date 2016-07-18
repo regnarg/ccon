@@ -157,5 +157,14 @@ namespace CCon {
                 }
             }
         }
+
+        /// Return a string representation of a vertex for debugging purposes (like `repr` in Python).
+        public string DescribeVertex(int u) {
+            var V = this.Graph.Vertices;
+            return string.Format("<Vertex {0} Stop={1}({2}) Time={3}({4}) CalRoute={5}({6})>",
+                    u, V[u].Stop, this.Stops[V[u].Stop].Name, V[u].Time, FormatTime(V[u].Time),
+                    V[u].CalRoute,
+                    V[u].CalRoute == ushort.MaxValue ? "-" : this.CalRoutes[V[u].CalRoute].RouteShortName);
+        }
     }
 }

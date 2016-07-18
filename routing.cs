@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Diagnostics;
 
 using static CCon.Utils;
 using static CCon.Model;
@@ -12,12 +13,15 @@ namespace CCon {
         public ushort TimeDist; // walk time to the stop in 5s units
     }
     public class ConnectionSegment {
-        public int FromVertex, ToVertex;
-        public string RouteShortName;
+        public int Start, End; ///< In-vehicle vertices for the start and end of the ride.
+        public ConnectionSegment(int start, int end) {
+            this.Start = start;
+            this.End = end;
+        }
     }
     public class Connection {
-        public ushort startTime, endTime;
-        public List<ConnectionSegment> segments;
+        public ushort StartTime, EndTime;
+        public List<ConnectionSegment> Segments = new List<ConnectionSegment>();
     }
     public class Router {
         Model model;
@@ -41,18 +45,21 @@ namespace CCon {
 
         void traverse(int start) {
             if (this.pred[start] != NotVisited) return;
+            Dbg("Traverse", this.model.DescribeVertex(start));
             this.pred[start] = StartedHere;
             Queue<int> queue = new Queue<int>();
             queue.Enqueue(start);
             while (queue.Count > 0) {
                 int u = queue.Dequeue();
-                if (this.pred[u] != NotVisited) continue; // already visited
-                this.pred[u] = start;
+                //Dbg("Visit", this.model.DescribeVertex(u));
                 // Must do this convoluted thing, CompactGraph.GetSuccessors is several times slower.
                 // In C, one could at least wrap this in a macro. ;-)
                 for (int e = this.vertices[u].SuccStart; e < this.vertices[u+1].SuccStart; e++) {
                     // TODO check calendar
-                    queue.Enqueue(this.succ[e]);
+                    int v = this.succ[e];
+                    if (this.pred[v] != NotVisited) continue;
+                    this.pred[v] = u;
+                    queue.Enqueue(v);
                 }
             }
         }
@@ -69,32 +76,76 @@ namespace CCon {
             return ret;
         }
 
+        /// Cut off the last segment (i.e. travel by one vehicle) from the path ending in $v$.
+        ///
+        /// Return the found segment and update $v$ in place to be the endpoint of the remaining path.
         ConnectionSegment lastSegment(ref int v) {
-            Debug.Assert(this.vertices[v].CalRoute == ushort.MaxValue);
-            int end = this.pred[v];
-            int u = end;
-            ushort calRouteId = this.vertices[end].CalRoute;
-            Debug.Assert(calRouteId != ushort.MaxValue);
-            int last = end;
-            while (this.vertices[u].CalRoute != ushort.MaxValue) {
-                Debug.Assert(this.vertices[u].CalRoute == calRouteId);
-                u = this.pred[u];
-            }
+            Dbg("lastSegment", this.model.DescribeVertex(v));
+            while (true) {
+                Debug.Assert(v >= 0);
+                Debug.Assert(this.vertices[v].CalRoute == ushort.MaxValue);
+                int end = this.pred[v];
+                // Skip any waiting on stop
+                while (end >= 0 && this.vertices[end].CalRoute == ushort.MaxValue) end = this.pred[end];
+                if (end == StartedHere) { v = -1; return null; } // hit end of path
 
+                int u = end;
+                Dbg("end",end);
+                ushort calRouteId = this.vertices[end].CalRoute;
+                Debug.Assert(calRouteId != ushort.MaxValue);
+                int start = end;
+                while (this.vertices[u].CalRoute != ushort.MaxValue) {
+                    Debug.Assert(this.vertices[u].CalRoute == calRouteId);
+                    start = u;
+                    u = this.pred[u];
+                }
+                v = u;
+                // It's perfectly valid for the search algorithm to find a path that gets onto
+                // a vehicle and immediately gets off again without riding anywhere. It is as
+                // fast as standing on a stop, mind you. But we do not want to report such
+                // zero-length segments to the user.
+                if (start == end) continue;
+                else return new ConnectionSegment(start, end);
+            }
         }
 
-        public void FindConnection(ushort[] from, ushort[] to) {
-            for (uint u = 0; u < this.model.Graph.NVertices; u++) this.pred[u] = NotVisited;
+        void dumpPath(int end) {
+            List<int> path = new List<int>();
+            int u = end;
+            while (u > 0) {
+                path.Add(u);
+                u = this.pred[u];
+            }
+            path.Reverse();
+            Dbg("path:");
+            foreach (var v in path) Dbg("  "+this.model.DescribeVertex(v));
+        }
 
+        public List<Connection> FindConnections(ushort[] from, ushort[] to) {
+            List<Connection> ret = new List<Connection>();
+            for (uint u = 0; u < this.model.Graph.NVertices; u++) this.pred[u] = NotVisited;
 
             foreach (var itm in this.stopsVertices(from, true)) {
                 this.traverse(itm.Item2);
             }
 
             foreach (var itm in this.stopsVertices(to)) {
-                List<ConnectionSegment> segs = new List<ConnectionSegment>();
+                if (this.pred[itm.Item2] == NotVisited) continue; // cannot get here this soon!
+                dumpPath(itm.Item2);
+                Connection conn = new Connection();
                 // Trace predecessors to reconstruct the connection.
+                int v = itm.Item2;
+                ConnectionSegment seg;
+                while ((seg = this.lastSegment(ref v)) != null) conn.Segments.Add(seg);
+                conn.Segments.Reverse(); // we found segments from last to first, correct that
+                Dbg("# Conn with",conn.Segments.Count, "segments", this.model.DescribeVertex(itm.Item2));
+                foreach (var tmpseg in conn.Segments) {
+                    Dbg("Segment",this.model.DescribeVertex(tmpseg.Start), "..", this.model.DescribeVertex(tmpseg.End));
+                }
+                conn.StartTime = this.vertices[conn.Segments[0].Start].Time;
+                conn.EndTime = this.vertices[conn.Segments[conn.Segments.Count - 1].Start].Time;
             }
+            return ret;
         }
     }
 }
