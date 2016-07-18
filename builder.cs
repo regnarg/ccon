@@ -61,7 +61,6 @@ namespace CCon {
         }
     }
     class ModelBuilder {
-        public ushort TransferTime = (ushort) (2*60/TimeGranularity);
         public double MaxWalkDistance = 250; ///< The maximum distance for walks between stops [m].
         // Humans usually walk faster but we have to account for street crossings and similar.
         public double WalkSpeed = 4.5; ///< Assumed walking speed [km/h].

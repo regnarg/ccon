@@ -8,7 +8,7 @@ using static CCon.Utils;
 
 namespace CCon {
     public class GTFS {
-        public class Invalid : Exception {
+        public class Invalid : UserError {
             public Invalid(string msg) : base("Invalid GTFS: " + msg) {}
         }
 

@@ -11,7 +11,15 @@ using Microsoft.Scripting;
 using Microsoft.Scripting.Hosting;
 
 namespace CCon {
-    static class Utils {
+    public static class Utils {
+
+        /// Base class for "clean" exceptions that occur during normal usage (e.g. stop not found).
+        /// Their message will be shown to the user without backtrace.
+        public class UserError : Exception {
+            // Even C# designers haven't yet invented constructor inheritance??
+            public UserError(string msg) : base(msg) {}
+        }
+
         public static IEnumerable< Tuple<T,T> > Pairs<T>(this IEnumerable<T> seq) {
             T last = default(T);
             bool first = true;
@@ -100,6 +108,7 @@ namespace CCon {
         }
 
         public const int TimeGranularity = 5; ///< Number of seconds that make up one time unit
+        public const ushort TransferTime = (ushort) (2*60/TimeGranularity);
 
         /**
          *  Convert a GTFS-like HH:MM:SS time to seconds/5-since-midnight.

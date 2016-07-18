@@ -2,6 +2,7 @@ using System;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Reflection;
 
 using CommandLine;
@@ -16,13 +17,13 @@ using static CCon.Utils;
 
 
 namespace CCon {
-    public class StopNotFound : Exception {
+    public class StopNotFound : UserError {
         public string Query;
         public StopNotFound(string query) : base(string.Format("Stop not found: '{0}'", query)) {
             this.Query = query;
         }
     }
-    public class StopAmbiguous : Exception {
+    public class StopAmbiguous : UserError {
         public string Query;
         public string[] Matches;
         public StopAmbiguous(string query, string[] matches) : base(string.Format("Stop ambiguous: '{0}'.\nMatches: '{1}'",
@@ -89,7 +90,7 @@ namespace CCon {
             return words;
         }
 
-        ushort[] FindStop(string query) {
+        public ushort[] FindStop(string query) {
             var qwords = SplitStop(query);
             int bestScore = int.MinValue;
             SortedSet<string> bestNames = new SortedSet<string>();
@@ -128,31 +129,84 @@ namespace CCon {
             return bestIds.ToArray();
         }
 
+        static readonly Regex StopDistRE = new Regex(@"([^+]*)(?:\+([0-9]+))?");
+
+        /// Parse the a virtual stop definition.
+        ///
+        /// Expects a string in the format "kuchynka+5/trojska+10/pelc+3".
+        public StopDistance[] FindStopDists(string s) {
+            List<StopDistance> ret = new List<StopDistance>();
+            var variants = s.Split('/');
+            foreach (var variant in variants) {
+                var m = StopDistRE.Match(variant);
+                string stopName = m.Groups[1].Value;
+                string timeDistStr = m.Groups[2].Value;
+                if (timeDistStr == "") timeDistStr = "0";
+                ushort timeDist = (ushort) (Convert.ToUInt16(timeDistStr) * 60 / TimeGranularity);
+                foreach (var stopId in this.FindStop(stopName)) {
+                    ret.Add(new StopDistance { Stop=stopId, TimeDist=timeDist });
+                }
+            }
+            return ret.ToArray();
+        }
+
         static string timeForPrint(ushort tm) {
             if (tm == ushort.MaxValue) return "";
             int sec = tm * TimeGranularity;
             int min = sec/60; // rounds down, which is usually what we want
-            return string.Format("{0}:{1:D2}", min/60, min%60);
+            return string.Format("{0,2}:{1:D2}", min/60, min%60);
         }
 
         public void PrintConnection(Connection conn) {
             ushort lastArrTime = ushort.MaxValue;
             var V = this.model.Graph.Vertices;
-            var tab = conn.Segments.Select(seg => {
-                    var row = new {
-                        StopName = this.model.Stops[V[seg.Start].Stop].Name,
-                        ArrTime = lastArrTime,
-                        DepTime = V[seg.Start].Time,
+
+            var segs = conn.Segments.Select( seg =>
+                    new {
+                        FromName = this.model.Stops[V[seg.Start].Stop].Name,
+                        ToName = this.model.Stops[V[seg.End].Stop].Name,
+                        StartTime = V[seg.Start].Time,
+                        EndTime = V[seg.End].Time,
                         RouteShortName = this.model.CalRoutes[V[seg.Start].CalRoute].RouteShortName,
+                    }
+            ).ToList();
+
+            if (segs[0].StartTime != conn.StartTime) {
+                segs.Insert(0, new {
+                        FromName = "(Start)",
+                        ToName = segs[0].FromName,
+                        StartTime = conn.StartTime,
+                        EndTime = segs[0].StartTime,
+                        RouteShortName = "", //"(walk)",
+                    });
+            }
+            var lastSeg = segs[segs.Count - 1];
+            if (lastSeg.EndTime != conn.EndTime) {
+                segs.Add(new {
+                        FromName = lastSeg.ToName,
+                        ToName = "(Destination)",
+                        StartTime = lastSeg.EndTime,
+                        EndTime = conn.EndTime,
+                        RouteShortName = "", //"(walk)",
+                    });
+            }
+
+            var tab = segs.Select(seg => {
+                    var row = new {
+                        StopName = seg.FromName,
+                        ArrTime = lastArrTime,
+                        DepTime = seg.StartTime,
+                        RouteShortName = seg.RouteShortName,
                     };
-                    lastArrTime = V[seg.End].Time;
+                    lastArrTime = seg.EndTime;
                     return row;
-            }).Concat((new []{0}).Select(x=> new {
-                StopName = this.model.Stops[V[conn.Segments.Last().End].Stop].Name,
+            }).ToList();
+            tab.Add(new {
+                StopName = segs.Last().ToName,
                 ArrTime = lastArrTime,
                 DepTime = ushort.MaxValue,
                 RouteShortName = "",
-            }));
+            });
 
             string bold = "\x1b[1m{0}\x1b[0m";
 
@@ -170,8 +224,8 @@ namespace CCon {
 
         void Run(Arguments args) {
             this.model = Model.Load(args.ModelPath);
-            ushort[] from = FindStop(args.From);
-            ushort[] to = FindStop(args.To);
+            StopDistance[] from = FindStopDists(args.From);
+            StopDistance[] to = FindStopDists(args.To);
             var router = new Router(this.model, args.Date);
             IEnumerable<Connection> conns;
             using (new Profiler("Find connection"))
@@ -194,7 +248,22 @@ namespace CCon {
         }
 
         static void Main(string[] args) {
-            (new CLI()).Run(Arguments.Parse(args));
+            try {
+                (new CLI()).Run(Arguments.Parse(args));
+            } catch (Exception ex) {
+                if (ex is TargetInvocationException) {
+                    ex = ((TargetInvocationException)ex).InnerException;
+                }
+                while (ex is ApplicationException) {
+                    ex = ((ApplicationException)ex).InnerException;
+                }
+                if (ex is UserError || ex is IOException || ex is FormatException) {
+                    Console.Error.WriteLine("ccon: error: " + ex.Message);
+                    Environment.Exit(1);
+                } else {
+                    throw;
+                }
+            }
         }
 
     }

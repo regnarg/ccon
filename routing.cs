@@ -7,10 +7,10 @@ using static CCon.Utils;
 using static CCon.Model;
 
 namespace CCon {
-    /// A structure recording the (time) distance to a stop.
+    /// A structure representing a place `TimeDist` time units of walking away from `Stop`.
     public struct StopDistance {
         public ushort Stop;
-        public ushort TimeDist; // walk time to the stop in 5s units
+        public ushort TimeDist; ///< Walk time to the stop in 5s units
     }
     public class ConnectionSegment {
         public int Start, End; ///< In-vehicle vertices for the start and end of the ride.
@@ -73,7 +73,7 @@ namespace CCon {
         void traverse(int start) {
             if (this.pred[start] != NotVisited) return;
             if (!this.checkCalendar(start)) return;
-            //Dbg("Traverse", this.model.DescribeVertex(start));
+            Dbg("Traverse", this.model.DescribeVertex(start));
             this.pred[start] = StartedHere;
             Queue<int> queue = new Queue<int>();
             queue.Enqueue(start);
@@ -93,11 +93,13 @@ namespace CCon {
             }
         }
 
-        List< Tuple<ushort, int> > stopsVertices(ushort[] stops, bool reverse=false) {
+        List< Tuple<ushort, int> > stopsVertices(StopDistance[] stopDists, bool subtractDist = false, bool reverse=false) {
             List< Tuple<ushort, int> > ret = new List< Tuple<ushort, int> >();
-            foreach (ushort stop in stops) {
-                foreach (int u in this.model.StopVertices(stop)) {
-                    ret.Add( Tuple.Create(this.vertices[u].Time, u) );
+            foreach (var stopDist in stopDists) {
+                int diff = (subtractDist ? -1 : +1) * stopDist.TimeDist;
+                foreach (int u in this.model.StopVertices(stopDist.Stop)) {
+                    if (this.vertices[u].Time+diff < 0) continue; // would overflow
+                    ret.Add( Tuple.Create((ushort)(this.vertices[u].Time+diff), u) );
                 }
             }
             if (reverse) ret.Sort((x,y) => y.Item1.CompareTo(x.Item1)); // sort in reverse time order
@@ -116,7 +118,7 @@ namespace CCon {
                 int end = this.pred[v];
                 // Skip any waiting on stop
                 while (end >= 0 && this.vertices[end].CalRoute == ushort.MaxValue) end = this.pred[end];
-                if (end == StartedHere) { v = -1; return null; } // hit end of path
+                if (end == StartedHere) { return null; } // hit end of path
 
                 int u = end;
                 ushort calRouteId = this.vertices[end].CalRoute;
@@ -149,15 +151,19 @@ namespace CCon {
             foreach (var v in path) Dbg("  "+this.model.DescribeVertex(v));
         }
 
-        public List<Connection> FindConnections(ushort[] from, ushort[] to) {
+        public List<Connection> FindConnections(StopDistance[] from, StopDistance[] to) {
             List<Connection> ret = new List<Connection>();
             for (uint u = 0; u < this.model.Graph.NVertices; u++) this.pred[u] = NotVisited;
+            // In case of virtual stops, store the virtual start/end time (i.e., when we would
+            // stand at the virtual stop).
+            Dictionary<int, ushort> virtualStart = new Dictionary<int, ushort>();
 
-            foreach (var itm in this.stopsVertices(from, true)) {
+            foreach (var itm in this.stopsVertices(from, subtractDist: true, reverse: true)) {
+                virtualStart[itm.Item2] = itm.Item1;
                 this.traverse(itm.Item2);
             }
 
-            foreach (var itm in this.stopsVertices(to)) {
+            foreach (var itm in this.stopsVertices(to, subtractDist: false)) {
                 if (this.pred[itm.Item2] == NotVisited) continue; // cannot get here this soon!
                 // Don't connections that have waiting on stop at the end (there will be another
                 // connection with an earlier arrival time that shall be listed instead).
@@ -173,8 +179,10 @@ namespace CCon {
                 //foreach (var tmpseg in conn.Segments) {
                 //    Dbg("Segment",this.model.DescribeVertex(tmpseg.Start), "..", this.model.DescribeVertex(tmpseg.End));
                 //}
-                conn.StartTime = this.vertices[conn.Segments[0].Start].Time;
-                conn.EndTime = this.vertices[conn.Segments[conn.Segments.Count - 1].End].Time;
+                // If from/to is a virtual stop, use virtual stop time as StartTime/EndTime.
+                conn.StartTime = virtualStart[v];
+                conn.EndTime = (ushort) (itm.Item1 - TransferTime);
+
                 ret.Add(conn);
             }
             return ret;
