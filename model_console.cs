@@ -11,6 +11,7 @@ using static CCon.Utils;
 class CLI {
     static void Main(string[] args) {
         Model model = Model.Load(args[0]);
+        Dbg(model.Stops[42].Name.Length);
         PyREPL("model", model);
     }
 

@@ -131,6 +131,9 @@ namespace CCon {
 
             foreach (var itm in this.stopsVertices(to)) {
                 if (this.pred[itm.Item2] == NotVisited) continue; // cannot get here this soon!
+                // Don't connections that have waiting on stop at the end (there will be another
+                // connection with an earlier arrival time that shall be listed instead).
+                if (this.vertices[this.pred[itm.Item2]].CalRoute == ushort.MaxValue) continue;
                 dumpPath(itm.Item2);
                 Connection conn = new Connection();
                 // Trace predecessors to reconstruct the connection.
@@ -144,6 +147,7 @@ namespace CCon {
                 }
                 conn.StartTime = this.vertices[conn.Segments[0].Start].Time;
                 conn.EndTime = this.vertices[conn.Segments[conn.Segments.Count - 1].Start].Time;
+                ret.Add(conn);
             }
             return ret;
         }

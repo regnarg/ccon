@@ -79,6 +79,13 @@ namespace CCon {
             return bestIds.ToArray();
         }
 
+        static string timeForPrint(ushort tm) {
+            if (tm == ushort.MaxValue) return "";
+            int sec = tm * TimeGranularity;
+            int min = sec/60; // rounds down, which is usually what we want
+            return string.Format("{0}:{1:D2}", min/60, min%60);
+        }
+
         public void PrintConnection(Connection conn) {
             ushort lastArrTime = ushort.MaxValue;
             var V = this.model.Graph.Vertices;
@@ -91,15 +98,18 @@ namespace CCon {
                     };
                     lastArrTime = V[seg.End].Time;
                     return row;
-            }).Concat(new[] { new {
+            }).Concat((new []{0}).Select(x=> new {
                 StopName = this.model.Stops[V[conn.Segments.Last().End].Stop].Name,
                 ArrTime = lastArrTime,
                 DepTime = ushort.MaxValue,
                 RouteShortName = "",
-            }});
+            }));
+
 
             foreach (var row in tab) {
-                
+                Console.WriteLine("{0,-25}  {1,5}  {2,5}  {3}", row.StopName,
+                        timeForPrint(row.ArrTime), timeForPrint(row.DepTime),
+                        row.RouteShortName);
             }
         }
 
@@ -112,6 +122,7 @@ namespace CCon {
                 conns = router.FindConnections(from, to);
             Dbg("Found",conns.Count,"connections");
             foreach (var conn in conns) {
+                Console.WriteLine("------------------------------------------------------------------");
                 this.PrintConnection(conn);
             }
         }
