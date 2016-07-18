@@ -9,8 +9,54 @@ using VertexKey = System.Tuple<CCon.GTFS.Stop, ushort, CCon.GTFS.Trip>;
 using CalRouteKey = System.Tuple<CCon.GTFS.Calendar, CCon.GTFS.Route>;
 
 namespace CCon {
+    /// A class that for a given set of points, finds all pairs closer than maxDistance.
+    ///
+    /// It uses the Manhattan metric because it gives a better approximation of walking
+    /// distances in cities than the Euclidean metric.
+    class ClosePointFinder<T> {
+        Dictionary< Tuple<int, int>, List< Tuple<double,double,T> > > cells
+            = new Dictionary< Tuple<int, int>, List< Tuple<double,double,T> > >();
+        double maxDistance;
+        public ClosePointFinder(double maxDistance) {
+            this.maxDistance = maxDistance;
+        }
+        Tuple<int, int> cell(double x, double y) {
+            return Tuple.Create((int)(x/maxDistance), (int)(y/maxDistance));
+        }
+        public void Add(double x, double y, T obj) {
+            this.cells.SetDefault(this.cell(x,y), ()=>new List< Tuple<double,double,T> >()).Add(Tuple.Create(x,y,obj));
+        }
+        /// Return the distance of two item's coordinated in the Manhattan metric.
+        double distance(Tuple<double,double,T> a, Tuple<double,double,T> b) {
+            return Math.Abs(a.Item1 - b.Item1) + Math.Abs(a.Item2 - b.Item2);
+        }
+        /// Return all pairs of points closer than `maxDistance`.
+        ///
+        /// The pairs are oriented, i.e. of points A and B are close, both
+        /// (A,B) and (B,A) pairs are returned.
+        public IEnumerable< Tuple<T,T> > ClosePairs() {
+            foreach (var cellItem in this.cells) {
+                var cell = cellItem.Key;
+                foreach (var itm in cellItem.Value) {
+                    // Look for close neighbours in this cell and all the 8 adjacent cells.
+                    for (int dx = -1;  dx <= 1; dx++)
+                    for (int dy = -1;  dy <= 1; dy++) {
+                        var ncell = Tuple.Create(cell.Item1+dx, cell.Item2+dy);
+                        if (!this.cells.ContainsKey(ncell)) continue;
+                        foreach (var neigh in this.cells[ncell]) {
+                            if (this.distance(itm, neigh) < this.maxDistance)
+                                yield return Tuple.Create(itm.Item3, neigh.Item3);
+                        }
+                    }
+                }
+            }
+        }
+    }
     class ModelBuilder {
         public ushort TransferTime = (ushort) (2*60/TimeGranularity);
+        public double MaxWalkDistance = 1000; ///< The maximum distance for walks between stops [m].
+        // Humans usually walk faster but we have to account for street crossings and similar.
+        public double WalkSpeed = 4.5; ///< Assumed walking speed [km/h].
         GTFS gtfs;
         //Dictionary< VertexKey, Vertex > vertices = new Dictionary< VertexKey, Vertex >();
         /// For each stop the set of all event (departure/arrival) times.
@@ -89,6 +135,11 @@ namespace CCon {
                     AddEdge(getVert(pair.Item1.Stop, pair.Item1.DepTime, trip),
                             getVert(pair.Item2.Stop, pair.Item2.ArrTime, trip));
                 }
+            }
+            // Add walk edges.
+            ClosePointFinder<Stop> cpf = new ClosePointFinder<Stop>(MaxWalkDistance);
+            foreach (var stop in this.gtfs.Stops.Values) {
+                //cpf.Add();
             }
             // IMPORTANT: Wait edges must be added last. The router counts on the wait edge
             //            being the last in the successor array for any vertex.
