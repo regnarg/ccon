@@ -52,7 +52,8 @@ namespace CCon {
             this.date = (date == default(DateTime) ? DateTime.Now.Date : date.Date);
             // Convert weekday to European convention (0=Monday)
             this.weekDay = (int)date.DayOfWeek - 1;
-            if (this.weekDay == -1) this.weekDay = 7;
+            if (this.weekDay == -1) this.weekDay = 6;
+            Dbg("weekday:", this.weekDay);
         }
 
         /// Check whether the vehicle corresponding to `vertex` operates on `this.date` according to its Calendar.

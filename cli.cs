@@ -2,9 +2,16 @@ using System;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+
+using CommandLine;
+using CommandLine.Text;
 
 using static CCon.Model;
 using static CCon.Utils;
+
+[assembly:AssemblyCopyright("Filip Stedronsky")]
+
 
 namespace CCon {
     public class StopNotFound : Exception {
@@ -22,10 +29,41 @@ namespace CCon {
             this.Matches = matches;
         }
     }
+
+    class Arguments {
+        [Value(0, MetaValue="FROM-STOP", HelpText="Starting stop", Required=true)]
+        public string From { get; set; }
+        [Value(1, MetaValue="TO-STOP", HelpText="Destination stop", Required=true)]
+        public string To { get; set; }
+        [Option('v', MetaValue="STOP", HelpText="Travel via STOP")]
+        public string Via { get; set; }
+        public ushort DepTime = ushort.MaxValue, ArrTime = ushort.MaxValue;
+        [Option('d', "dep", MetaValue="HH:MM", HelpText="Departure time (earliest possible)")]
+        public string DepTimeStr { set { this.DepTime = ParseTime(value); } }
+        [Option('a', "arr", MetaValue="HH:MM", HelpText="Arrival time (latest possible)")]
+        public string ArrTimeStr { set { this.DepTime = ParseTime(value); } }
+
+        public DateTime Date;
+        [Option('D', "date", MetaValue="DATE", HelpText="Travel date")]
+        public string DateStr { set { this.Date = DateTime.Parse(value).Date; } }
+
+        [Option("db", MetaValue="FILE.dat", HelpText="Path to timetable database (created by ccon-build)",
+                Default="~/.cache/ccon.dat")]
+        public string ModelPath { get; set; }
+
+        public static Arguments Parse(string[] args) {
+            var res =  Parser.Default.ParseArguments<Arguments>(args) as Parsed<Arguments>;
+            if (res == null) {
+                Environment.Exit(1);
+            }
+            return res.Value;
+        }
+    };
+
     class CLI {
         Model model;
 
-        CLI(Model model) {
+        CLI(Model model = null) {
             this.model = model;
         }
 
@@ -119,10 +157,11 @@ namespace CCon {
             }
         }
 
-        void Run(string[] args) {
-            ushort[] from = FindStop(args[1]);
-            ushort[] to = FindStop(args[2]);
-            var router = new Router(this.model);
+        void Run(Arguments args) {
+            this.model = Model.Load(args.ModelPath);
+            ushort[] from = FindStop(args.From);
+            ushort[] to = FindStop(args.To);
+            var router = new Router(this.model, args.Date);
             List<Connection> conns;
             using (new Profiler("Find connection"))
                 conns = router.FindConnections(from, to);
@@ -134,8 +173,7 @@ namespace CCon {
         }
 
         static void Main(string[] args) {
-            var model = Model.Load(args[0]);
-            (new CLI(model)).Run(args);
+            (new CLI()).Run(Arguments.Parse(args));
         }
 
     }
