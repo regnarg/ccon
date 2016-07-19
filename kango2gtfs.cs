@@ -369,6 +369,7 @@ namespace CCon {
                         Id = stationId.ToString(),
                         Name = stations[stationId].Name,
                     });
+            GTFS.CSVDesc.EnforceCsvColumnAttribute = true;
             cc.Write<GTFS.Stop>(gtfsStops, outDir + "/stops.txt", GTFS.CSVDesc);
             cc.Write<GTFS.Route>(gtfsRoutes, outDir + "/routes.txt", GTFS.CSVDesc);
             cc.Write<GTFS.Calendar>(gtfsCalendars, outDir + "/calendar.txt", GTFS.CSVDesc);

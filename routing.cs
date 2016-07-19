@@ -180,7 +180,7 @@ namespace CCon {
                 //    Dbg("Segment",this.model.DescribeVertex(tmpseg.Start), "..", this.model.DescribeVertex(tmpseg.End));
                 //}
                 // If from/to is a virtual stop, use virtual stop time as StartTime/EndTime.
-                conn.StartTime = virtualStart[v];
+                conn.StartTime = virtualStart.ContainsKey(v) ? virtualStart[v] : this.vertices[conn.Segments[0].Start].Time;
                 conn.EndTime = (ushort) (itm.Item1 - TransferTime);
 
                 ret.Add(conn);

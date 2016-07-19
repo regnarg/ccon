@@ -6,9 +6,10 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Globalization;
 
-using IronPython.Hosting;
-using Microsoft.Scripting;
-using Microsoft.Scripting.Hosting;
+//DEBUG:
+//using IronPython.Hosting;
+//using Microsoft.Scripting;
+//using Microsoft.Scripting.Hosting;
 
 namespace CCon {
     public static class Utils {
@@ -60,17 +61,17 @@ namespace CCon {
             return source.Skip(Math.Max(0, source.Count() - N));
         }
 
-        public static void PyREPL(params object[] vars) {
-            var engine = Python.CreateEngine();
-            var scope = engine.CreateScope();
-            for (int i = 0; i < vars.Length; i += 2) {
-                string key = (string) vars[i];
-                scope.SetVariable(key, vars[i+1]);
-            }
-            var code = "try: import sys; sys.ps1='\\n\\n'+sys.ps1+'\\n'; sys.path.append('/usr/lib/ipy/Lib');import code; code.interact(None,None,locals())\nexcept: __import__('traceback').print_exc()";
-            var source = engine.CreateScriptSourceFromString(code, SourceCodeKind.Statements);
-            source.Execute(scope);
-        }
+        //public static void PyREPL(params object[] vars) {
+        //    var engine = Python.CreateEngine();
+        //    var scope = engine.CreateScope();
+        //    for (int i = 0; i < vars.Length; i += 2) {
+        //        string key = (string) vars[i];
+        //        scope.SetVariable(key, vars[i+1]);
+        //    }
+        //    var code = "try: import sys; sys.ps1='\\n\\n'+sys.ps1+'\\n'; sys.path.append('/usr/lib/ipy/Lib');import code; code.interact(None,None,locals())\nexcept: __import__('traceback').print_exc()";
+        //    var source = engine.CreateScriptSourceFromString(code, SourceCodeKind.Statements);
+        //    source.Execute(scope);
+        //}
 
 
         public class CompactTableBuilder<TFull, TCompact> {
@@ -196,6 +197,10 @@ namespace CCon {
         /// Shortcut for Environment.GetEnvironmentVariable
         public static string GetEnv(string var) {
             return Environment.GetEnvironmentVariable(var);
+        }
+
+        public static string GetDefaultDbPath() {
+            return GetEnv("CCON_DB") ?? (GetEnv("HOME")+"/.cache/ccon.dat");
         }
 
         static Regex StopSpace = new Regex(@"[^a-z0-9]+");

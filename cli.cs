@@ -263,7 +263,7 @@ namespace CCon {
 
         void Run(Arguments args) {
             this.LoadConfig();
-            this.model = Model.Load(args.ModelPath ?? GetEnv("CCON_DB") ?? (GetEnv("HOME")+"/.cache/ccon.dat"));
+            this.model = Model.Load(args.ModelPath ?? GetDefaultDbPath());
             StopDistance[] from = FindStopDists(ResolveAlias(args.From));
             StopDistance[] to = FindStopDists(ResolveAlias(args.To));
             var router = new Router(this.model, args.Date);

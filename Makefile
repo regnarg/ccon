@@ -1,8 +1,8 @@
 
 #all: ccon.exe.so gtfs2graph.exe.so LINQtoCSV.dll.so YamlSerializer.dll.so
-all: ccon.exe ccon-build.exe model_console.exe kango2gtfs.exe
+all: ccon.exe ccon-build.exe kango2gtfs.exe #model_console.exe
 
-PY_REFS=-lib:/usr/lib/ipy -r:Microsoft.Scripting -r:IronPython
+#PY_REFS=-lib:/usr/lib/ipy -r:Microsoft.Scripting -r:IronPython
 CSFLAGS_DBG=-debug+ -d:DEBUG
 CSFLAGS_COMMON=-O:all,-shared
 CSFLAGS=$(CSFLAGS_COMMON) $(CSFLAGS_DBG)
@@ -18,16 +18,16 @@ install-deps:
 	ln -f $$(ls -d 3rd/msgpack-cli/bin/[Nn]et[234]* | sort -f | tail -1)/*.dll .
 
 ccon-build.exe: builder.cs gtfs.cs model.cs utils.cs
-	mcs $(CSFLAGS) -r:LINQtoCSV -r:MsgPack -r:ProjNet $(PY_REFS) -out:$@ $^
+	mcs $(CSFLAGS) -r:LINQtoCSV -r:MsgPack -r:ProjNet -r:CommandLine -out:$@ $^
 
 kango2gtfs.exe: kango2gtfs.cs gtfs.cs utils.cs
-	mcs $(CSFLAGS) -r:LINQtoCSV -r:CommandLine $(PY_REFS) -out:$@ $^
+	mcs $(CSFLAGS) -r:LINQtoCSV -r:CommandLine -out:$@ $^
 
 ccon.exe: cli.cs model.cs utils.cs routing.cs
-	mcs $(CSFLAGS) -r:MsgPack -r:CommandLine $(PY_REFS) -out:$@ $^
+	mcs $(CSFLAGS) -r:MsgPack -r:CommandLine -out:$@ $^
 
-model_console.exe: model_console.cs model.cs utils.cs
-	mcs $(CSFLAGS) -r:MsgPack $(PY_REFS) -out:$@ $^
+#model_console.exe: model_console.cs model.cs utils.cs
+#	mcs $(CSFLAGS) -r:MsgPack $(PY_REFS) -out:$@ $^
 
 %.so: %
 	mono --debug --aot -O=all,-shared $<

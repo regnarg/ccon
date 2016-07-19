@@ -128,7 +128,6 @@ namespace CCon {
                     FileCultureName = "",
                     MaximumNbrExceptions = 1,
                     TextEncoding = new UTF8Encoding(false), // write without the cursed BOM
-                    EnforceCsvColumnAttribute = true,
                 };
 
         IEnumerable<T> LoadCSV<T>(string path) where T: class, new() {

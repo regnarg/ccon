@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
+using System.Reflection;
 
 using static CCon.GTFS;
 using static CCon.Utils;
@@ -10,9 +11,15 @@ using ProjNet;
 using ProjNet.CoordinateSystems;
 using ProjNet.CoordinateSystems.Transformations;
 
+using CommandLine;
+using CommandLine.Text;
 
 using VertexKey = System.Tuple<CCon.GTFS.Stop, ushort, CCon.GTFS.Trip>;
 using CalRouteKey = System.Tuple<CCon.GTFS.Calendar, CCon.GTFS.Route>;
+//
+//HACK to get this into help message
+[assembly:AssemblyCopyright("Usage: ccon-build GTFS-DIR [-o FILE]")]
+[assembly:AssemblyVersion("0.1")]
 
 namespace CCon {
     /// A class that for a given set of points, finds all pairs closer than maxDistance.
@@ -61,6 +68,22 @@ namespace CCon {
         }
     }
     class ModelBuilder {
+        public class Arguments {
+            [Value(0, MetaValue="GTFS-DIR", HelpText="The directory with (unzipped) GTFS feed", Required=true)]
+            public string GTFSDir { get; set; }
+
+            [Option('o', "output", MetaValue="FILE", HelpText="Output file [default: ~/.cache/ccon.dat]")]
+            public string Output { get; set; }
+
+            public static Arguments Parse(string[] args) {
+                var res =  Parser.Default.ParseArguments<Arguments>(args) as Parsed<Arguments>;
+                if (res == null) {
+                    Environment.Exit(1);
+                }
+                return res.Value;
+            }
+        };
+
         public double MaxWalkDistance = 250; ///< The maximum distance for walks between stops [m].
         // Humans usually walk faster but we have to account for street crossings and similar.
         public double WalkSpeed = 4.5; ///< Assumed walking speed [km/h].
@@ -254,12 +277,14 @@ namespace CCon {
         }
 
         public static void Main(string [] args) {
+            var pargs = Arguments.Parse(args);
             var gtfs = new GTFS();
-            gtfs.Load(args[0]);
+            gtfs.Load(pargs.GTFSDir);
             var builder = new ModelBuilder(gtfs);
             var model = builder.BuildModel();
-            model.Write(args[1]);
-            builder.BuildCompletions(model, args[1]+".comp");
+            var output = pargs.Output ?? GetDefaultDbPath();
+            model.Write(output);
+            builder.BuildCompletions(model, output+".comp");
         }
     }
 }
