@@ -188,9 +188,27 @@ namespace CCon {
             return ret;
         }
 
+        List<Connection> JoinConnections(List<Connection> conns1, List<Connection> conns2) {
+            List<Connection> res = new List<Connection>();
+            foreach (var conn1 in conns1) {
+                var conn2 = conns2.Where(x => x.StartTime >= conn1.EndTime).FirstOrDefault();
+                if (conn2 == null) continue;
+                var newsegs = conn1.Segments.Concat(conn2.Segments).ToList();
+                var newconn = new Connection();
+                newconn.Segments = newsegs;
+                newconn.StartTime = conn1.StartTime;
+                newconn.EndTime = conn2.EndTime;
+                res.Add(newconn);
+            }
+            return res;
+        }
+
         /// Find a connection with a single prescribed `via` stop (items in the array are
         /// alternatives, not more vias).
-        //public List<Connection> FindVia(StopDistance[] from, StopDistance[] via, StopDistance[] to) {
-        //}
+        public List<Connection> FindVia(StopDistance[] from, StopDistance[] via, StopDistance[] to) {
+            var conns1 = this.FindConnections(from, via);
+            var conns2 = this.FindConnections(via, to);
+            return JoinConnections(conns1, conns2);
+        }
     }
 }

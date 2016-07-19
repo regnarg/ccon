@@ -268,8 +268,14 @@ namespace CCon {
             StopDistance[] to = FindStopDists(ResolveAlias(args.To));
             var router = new Router(this.model, args.Date);
             IEnumerable<Connection> conns;
-            using (new Profiler("Find connection"))
-                conns = router.FindConnections(from, to);
+            using (new Profiler("Find connection")) {
+                if (args.Via != null) {
+                    var via = FindStopDists(ResolveAlias(args.Via));
+                    conns = router.FindVia(from, via, to);
+                } else {
+                    conns = router.FindConnections(from, to);
+                }
+            }
             if (args.ArrTime == ushort.MaxValue && args.DepTime == ushort.MaxValue) {
                 args.DepTime = (ushort) (DateTime.Now.TimeOfDay.TotalSeconds / TimeGranularity);
             }
