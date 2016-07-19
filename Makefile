@@ -1,6 +1,6 @@
 
 #all: ccon.exe.so gtfs2graph.exe.so LINQtoCSV.dll.so YamlSerializer.dll.so
-all: ccon.exe ccon-build.exe model_console.exe
+all: ccon.exe ccon-build.exe model_console.exe kango2gtfs.exe
 
 PY_REFS=-lib:/usr/lib/ipy -r:Microsoft.Scripting -r:IronPython
 CSFLAGS_DBG=-debug+ -d:DEBUG
@@ -19,6 +19,9 @@ install-deps:
 
 ccon-build.exe: builder.cs gtfs.cs model.cs utils.cs
 	mcs $(CSFLAGS) -r:LINQtoCSV -r:MsgPack -r:ProjNet $(PY_REFS) -out:$@ $^
+
+kango2gtfs.exe: kango2gtfs.cs gtfs.cs utils.cs
+	mcs $(CSFLAGS) -r:LINQtoCSV -r:CommandLine $(PY_REFS) -out:$@ $^
 
 ccon.exe: cli.cs model.cs utils.cs routing.cs
 	mcs $(CSFLAGS) -r:MsgPack -r:CommandLine $(PY_REFS) -out:$@ $^

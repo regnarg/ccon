@@ -3,6 +3,7 @@ using System.IO;
 using LINQtoCSV;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using static CCon.Utils;
 
@@ -121,17 +122,20 @@ namespace CCon {
         public Dictionary<string, Calendar> Calendars; 
         public Dictionary<string, Trip> Trips; 
 
-        IEnumerable<T> LoadCSV<T>(string path) where T: class, new() {
-            using (new Profiler("Loading " + path)) {
-                var fileDesc = new CsvFileDescription {
+        public static readonly CsvFileDescription CSVDesc = new CsvFileDescription {
                     IgnoreUnknownColumns = true,
                     // Needed to parse floats with decimal points, regardless of locale
                     FileCultureName = "",
                     MaximumNbrExceptions = 1,
+                    TextEncoding = new UTF8Encoding(false), // write without the cursed BOM
+                    EnforceCsvColumnAttribute = true,
                 };
+
+        IEnumerable<T> LoadCSV<T>(string path) where T: class, new() {
+            using (new Profiler("Loading " + path)) {
                 var cc = new CsvContext();
                 try {
-                    return cc.Read<T>(path, fileDesc).ToList();
+                    return cc.Read<T>(path, CSVDesc).ToList();
                 } catch(AggregatedException ae) {
                     string msg;
                     // Process all exceptions generated while processing the file

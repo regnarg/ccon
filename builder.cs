@@ -144,6 +144,7 @@ namespace CCon {
             var transformation = fact.CreateFromCoordinateSystems(wgs84, utm33);
 
             foreach (var stop in this.gtfs.Stops.Values) {
+                if (stop.Lat == 0 && stop.Lon == 0) continue; // coords not known
                 // Convert coordinates to UTM (local Cartesian metre grid) to correctly
                 // compute distances.
                 double[] utm = transformation.MathTransform.Transform(new double[] { stop.Lon, stop.Lat });
