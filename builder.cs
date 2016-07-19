@@ -226,6 +226,16 @@ namespace CCon {
             }
             return G;
         }
+        
+        void BuildCompletions(Model model, string fn) {
+            using (var sw = new StreamWriter(fn)) {
+                foreach (var stop in model.Stops) {
+                    // Make completions with dashes to spare the user from quoting.
+                    var name = NormalizeStopName(stop.Name).Replace(" ", "-");
+                    sw.WriteLine(name);
+                }
+            }
+        }
 
         public Model BuildModel() {
             using (new Profiler("Create graph"))
@@ -248,6 +258,7 @@ namespace CCon {
             var builder = new ModelBuilder(gtfs);
             var model = builder.BuildModel();
             model.Write(args[1]);
+            builder.BuildCompletions(model, args[1]+".comp");
         }
     }
 }

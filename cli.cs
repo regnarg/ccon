@@ -79,17 +79,32 @@ namespace CCon {
             this.model = model;
         }
 
-        static Regex StopSpace = new Regex(@"[^a-z0-9]+");
         /// Split a stop name into normalized words, removing accents and punctuation.
         public static string[] SplitStop(string name) {
-            name = RemoveDiacritics(name);
-            name = name.ToLower();
-            name = StopSpace.Replace(name, " ");
-            name = name.Trim();
-            var words = name.Split(' ');
+            var words = NormalizeStopName(name).Split(' ');
             return words;
         }
 
+        /// Find a stop matching a query, returning the IDs of all its substops.
+        ///
+        /// Each word of the query must be a prefix of the corresponding word
+        /// of the stop name. Among matches satisfying this criterion, a scoring
+        /// is established. Whole-word matches (instead of just prefixes) give
+        /// +1 point, extra words at the end of the stop name give -1 point.
+        ///
+        /// If there is a unique highest-score name, it is returned. Otherwise,
+        /// StopAmbiguous is raised.
+        ///
+        /// Interpunction is considered equivalent to whitespace.
+        ///
+        /// This behaves rather intuitively. Examples:
+        ///    * pelc       -> Pelc-Tyrolka
+        ///    * malos      -> Malostranská
+        ///    * malos-n    -> Malostranské náměstí
+        ///    * hl-n       -> Hlavní nádraží
+        ///    * zoo        -> Zoologická zahrada
+        /// but:
+        ///    * narod      -> AMBIGUOUS (Národní divadlo, Národní třída)
         public ushort[] FindStop(string query) {
             var qwords = SplitStop(query);
             int bestScore = int.MinValue;

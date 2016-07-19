@@ -187,5 +187,10 @@ namespace CCon {
             }
             return ret;
         }
+
+        /// Find a connection with a single prescribed `via` stop (items in the array are
+        /// alternatives, not more vias).
+        //public List<Connection> FindVia(StopDistance[] from, StopDistance[] via, StopDistance[] to) {
+        //}
     }
 }

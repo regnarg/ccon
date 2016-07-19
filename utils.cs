@@ -197,5 +197,14 @@ namespace CCon {
         public static string GetEnv(string var) {
             return Environment.GetEnvironmentVariable(var);
         }
+
+        static Regex StopSpace = new Regex(@"[^a-z0-9]+");
+        public static string NormalizeStopName(string name) {
+            name = RemoveDiacritics(name);
+            name = name.ToLower();
+            name = StopSpace.Replace(name, " ");
+            name = name.Trim();
+            return name;
+        }
     }
 }
